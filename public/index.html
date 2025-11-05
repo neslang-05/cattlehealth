@@ -9,7 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -30,7 +29,7 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <!-- Live Data Cards (Unchanged) -->
+            <!-- Live Data Cards -->
             <section class="live-status">
                 <div class="card">
                     <div class="card__icon"><i class="fa-solid fa-heart-pulse"></i></div>
@@ -62,10 +61,16 @@
                 </div>
             </section>
 
-            <!-- NEW: Chart Section -->
-            <section class="chart-container">
-                <h2>Recent Health Trends</h2>
-                <canvas id="health-chart"></canvas>
+            <!-- Description Section -->
+            <section class="description-container">
+                <h2>About the Data</h2>
+                <p>This dashboard displays live data streamed directly from the health monitoring sensor attached to Cow #1. The values update in real-time as new readings are received from the device.</p>
+                <ul>
+                    <li><strong>Pulse:</strong> The raw pulse reading from the sensor.</li>
+                    <li><strong>Internal Temp:</strong> The internal body temperature of the cow, measured in Celsius.</li>
+                    <li><strong>External Temp:</strong> The ambient temperature of the cow's immediate surroundings.</li>
+                    <li><strong>Last Update:</strong> The time the last data point was received.</li>
+                </ul>
             </section>
         </main>
     </div>

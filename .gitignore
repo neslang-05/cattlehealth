@@ -1,0 +1,13 @@
+
+# Firebase
+firebase-debug.log
+
+# Vercel
+.vercel
+
+# Node
+node_modules
+
+# Environment variables
+.env
+.env*.local
