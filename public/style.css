@@ -18,7 +18,7 @@ body {
     line-height: 1.6;
 }
 
-/* --- Layout Grid (sidebar removed) --- */
+/* --- Layout Grid, Header --- */
 .grid-container {
     display: grid;
     grid-template-columns: 1fr;
@@ -41,8 +41,6 @@ body {
 .status--connected .fa-circle, .status--disconnected .fa-circle { font-size: 0.8em; animation: pulse 2s infinite; }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-/* Sidebar styles removed - not used after layout simplification */
-
 /* --- Main Content & Live Cards (Unchanged) --- */
 .main-content { padding: 2rem; overflow-y: auto; }
 .live-status {
@@ -59,56 +57,22 @@ body {
 .card__data { font-size: 1.75rem; font-weight: 700; color: var(--text-color); }
 #last-update { font-size: 1.5rem; }
 
-/* --- NEW: Historical Table Styles --- */
-/* --- Real-time Visualization Styles --- */
-.realtime-viz-container {
+/* --- NEW: Chart Styles --- */
+.chart-container {
     background-color: var(--card-bg);
-    padding: 1.5rem 2rem;
+    padding: 2rem;
     border-radius: 12px;
     box-shadow: var(--shadow);
+    height: 400px; /* Give the container a fixed height */
 }
-.viz-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-    gap: 1rem;
-}
-.viz-header h2 {
+.chart-container h2 {
+    margin-bottom: 1.5rem;
     font-weight: 600;
-    margin: 0;
-}
-.history-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background-color: var(--primary-color);
-    color: white;
-    text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: background-color 0.3s ease;
-}
-.history-link:hover {
-    background-color: #0056b3;
-}
-#realtime-plot {
-    width: 100%;
-    min-height: 400px;
-    background: transparent;
 }
 
-/* --- Responsive Design (Unchanged) --- */
-@media (max-width: 992px) {
-    .grid-container {
-        grid-template-columns: 1fr; grid-template-rows: auto 1fr;
-        grid-template-areas: "header" "main"; height: auto;
-    }
-}
+/* --- Responsive Design --- */
 @media (max-width: 768px) {
     .header { flex-direction: column; align-items: flex-start; gap: 1rem; }
     .main-content { padding: 1.5rem; }
+    .chart-container { height: 300px; }
 }

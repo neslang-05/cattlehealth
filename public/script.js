@@ -25,37 +25,13 @@ const internalTempElement = document.getElementById('live-internal-temp');
 const externalTempElement = document.getElementById('live-external-temp');
 const lastUpdateElement = document.getElementById('last-update');
 const connectionStatusElement = document.getElementById('connection-status');
-const realtimePlotDiv = document.getElementById('realtime-plot');
+const chartCanvas = document.getElementById('health-chart');
 
-// Real-time data buffers (keep last 50 readings for visualization)
-const MAX_POINTS = 50;
-const dataBuffer = {
-    timestamps: [],
-    pulse: [],
-    internalTemp: [],
-    externalTemp: []
-};
-
-console.log('Dashboard script loaded');
-if (typeof Plotly === 'undefined') {
-    console.error('Plotly is not loaded');
-}
-
-// Helper: convert timestamp formats
-function convertTimestamp(ts) {
-    if (!ts) return new Date();
-    if (typeof ts === 'object') {
-        if (typeof ts.toDate === 'function') return ts.toDate();
-        if (ts.seconds) return new Date(ts.seconds * 1000 + (ts.nanoseconds ? ts.nanoseconds / 1e6 : 0));
-        if (ts._seconds) return new Date(ts._seconds * 1000 + (ts._nanoseconds ? ts._nanoseconds / 1e6 : 0));
-    }
-    if (typeof ts === 'number') return new Date(ts);
-    if (typeof ts === 'string' && !isNaN(Number(ts))) return new Date(Number(ts));
-    return new Date(ts);
-}
+// Chart Variable
+let healthChart = null;
 
 // ===================================================================================
-// --- 3. REAL-TIME DATA LISTENER (For Live Cards & Plotly Visualization) ---
+// --- 3. REAL-TIME DATA LISTENER (For Live Cards - Unchanged) ---
 // ===================================================================================
 const latestReadingRef = database.ref('/cattle/cow_1/latest_reading');
 
@@ -65,17 +41,12 @@ latestReadingRef.on('value', (snapshot) => {
         connectionStatusElement.className = 'status--connected';
         connectionStatusElement.innerHTML = '<i class="fa-solid fa-circle"></i> Connected';
         
-        // Update live cards
         pulseElement.textContent = `${data.pulseRaw}`;
         internalTempElement.textContent = `${data.internalTemperature.toFixed(1)} °C`;
         externalTempElement.textContent = `${data.externalTemperature.toFixed(1)} °C`;
         
         const updateTime = new Date(data.timestamp);
         lastUpdateElement.textContent = updateTime.toLocaleTimeString();
-
-        // Add to data buffer for real-time plot
-        addDataPoint(updateTime, data.pulseRaw, data.internalTemperature, data.externalTemperature);
-        updateRealtimePlot();
     } else {
         connectionStatusElement.className = 'status--disconnected';
         connectionStatusElement.innerHTML = '<i class="fa-solid fa-circle"></i> No Data';
@@ -83,251 +54,133 @@ latestReadingRef.on('value', (snapshot) => {
 });
 
 // ===================================================================================
-// --- 4. REAL-TIME PLOTLY VISUALIZATION ---
+// --- 4. NEW: CHART.JS VISUALIZATION ---
 // ===================================================================================
-function addDataPoint(timestamp, pulse, internalTemp, externalTemp) {
-    dataBuffer.timestamps.push(timestamp);
-    dataBuffer.pulse.push(pulse);
-    dataBuffer.internalTemp.push(internalTemp);
-    dataBuffer.externalTemp.push(externalTemp);
 
-    // Keep only the last MAX_POINTS
-    if (dataBuffer.timestamps.length > MAX_POINTS) {
-        dataBuffer.timestamps.shift();
-        dataBuffer.pulse.shift();
-        dataBuffer.internalTemp.shift();
-        dataBuffer.externalTemp.shift();
-    }
-}
+// Function to initialize and update the chart
+function initializeChart(historicalData) {
+    if (!chartCanvas) return;
 
-function updateRealtimePlot() {
-    if (!realtimePlotDiv || typeof Plotly === 'undefined') return;
+    const labels = historicalData.map(d => new Date(d.timestamp).toLocaleTimeString());
+    const pulseData = historicalData.map(d => d.pulseRaw);
+    const internalTempData = historicalData.map(d => d.internalTemperature);
+    const externalTempData = historicalData.map(d => d.externalTemperature);
 
-    const trace1 = {
-        x: dataBuffer.timestamps,
-        y: dataBuffer.pulse,
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Pulse',
-        line: { color: '#007bff', width: 2 },
-        marker: { size: 5 },
-        yaxis: 'y1'
-    };
-
-    const trace2 = {
-        x: dataBuffer.timestamps,
-        y: dataBuffer.internalTemp,
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Internal Temp (°C)',
-        line: { color: '#28a745', width: 2 },
-        marker: { size: 5 },
-        yaxis: 'y2'
-    };
-
-    const trace3 = {
-        x: dataBuffer.timestamps,
-        y: dataBuffer.externalTemp,
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'External Temp (°C)',
-        line: { color: '#ffc107', width: 2 },
-        marker: { size: 5 },
-        yaxis: 'y2'
-    };
-
-    const layout = {
-        title: {
-            text: 'Live Data Stream (Last 50 readings)',
-            font: { size: 16, color: '#495057' }
-        },
-        xaxis: {
-            title: 'Time',
-            type: 'date',
-            showgrid: true,
-            gridcolor: '#e9ecef'
-        },
-        yaxis: {
-            title: 'Pulse',
-            titlefont: { color: '#007bff' },
-            tickfont: { color: '#007bff' },
-            side: 'left'
-        },
-        yaxis2: {
-            title: 'Temperature (°C)',
-            titlefont: { color: '#28a745' },
-            tickfont: { color: '#28a745' },
-            overlaying: 'y',
-            side: 'right'
-        },
-        legend: {
-            x: 0,
-            y: 1.1,
-            orientation: 'h'
-        },
-        margin: { l: 60, r: 60, t: 80, b: 60 },
-        hovermode: 'x unified',
-        plot_bgcolor: '#f8f9fa',
-        paper_bgcolor: '#ffffff'
-    };
-
-    const config = {
-        responsive: true,
-        displayModeBar: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: ['lasso2d', 'select2d']
-    };
-
-    // Use Plotly.react for efficient updates
-    Plotly.react(realtimePlotDiv, [trace1, trace2, trace3], layout, config);
-}
-
-// Initialize plot with empty data
-function initializePlot() {
-    if (!realtimePlotDiv || typeof Plotly === 'undefined') {
-        console.warn('Plotly or plot div not available');
-        return;
-    }
-
-    const emptyLayout = {
-        title: {
-            text: 'Live Data Stream (Waiting for data...)',
-            font: { size: 16, color: '#495057' }
-        },
-        xaxis: { title: 'Time' },
-        yaxis: { title: 'Pulse', side: 'left' },
-        yaxis2: { title: 'Temperature (°C)', overlaying: 'y', side: 'right' },
-        margin: { l: 60, r: 60, t: 80, b: 60 },
-        plot_bgcolor: '#f8f9fa',
-        paper_bgcolor: '#ffffff'
-    };
-
-    Plotly.newPlot(realtimePlotDiv, [], emptyLayout, { responsive: true, displaylogo: false });
-}
-
-// ===================================================================================
-// --- 5. FIRESTORE REAL-TIME DATA FETCHING ---
-// ===================================================================================
-async function fetchRecentFirestoreData() {
-    console.log('Fetching recent data from Firestore for real-time chart...');
-    
-    try {
-        const readingsRef = firestore.collection('historical_readings');
-        const query = readingsRef.orderBy('timestamp', 'desc').limit(MAX_POINTS);
-        const snapshot = await query.get();
-        
-        console.log('Firestore returned', snapshot.size, 'recent readings');
-        
-        if (!snapshot.empty) {
-            // Clear existing buffer
-            dataBuffer.timestamps = [];
-            dataBuffer.pulse = [];
-            dataBuffer.internalTemp = [];
-            dataBuffer.externalTemp = [];
-            
-            // Collect entries (newest first from query)
-            const entries = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                entries.push({
-                    timestamp: convertTimestamp(data.timestamp),
-                    pulseRaw: data.pulseRaw,
-                    internalTemperature: data.internalTemperature,
-                    externalTemperature: data.externalTemperature
-                });
-            });
-            
-            // Reverse to get oldest -> newest for chart
-            entries.reverse();
-            
-            // Populate buffer
-            entries.forEach(entry => {
-                dataBuffer.timestamps.push(entry.timestamp);
-                dataBuffer.pulse.push(entry.pulseRaw);
-                dataBuffer.internalTemp.push(entry.internalTemperature);
-                dataBuffer.externalTemp.push(entry.externalTemperature);
-            });
-            
-            // Update the plot
-            updateRealtimePlot();
-            
-            // Update live cards with most recent reading
-            const latest = entries[entries.length - 1];
-            if (latest) {
-                pulseElement.textContent = `${latest.pulseRaw}`;
-                internalTempElement.textContent = `${latest.internalTemperature.toFixed(1)} °C`;
-                externalTempElement.textContent = `${latest.externalTemperature.toFixed(1)} °C`;
-                lastUpdateElement.textContent = latest.timestamp.toLocaleTimeString();
-                connectionStatusElement.className = 'status--connected';
-                connectionStatusElement.innerHTML = '<i class="fa-solid fa-circle"></i> Connected';
+    const chartData = {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Pulse',
+                data: pulseData,
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                yAxisID: 'yPulse',
+                tension: 0.3
+            },
+            {
+                label: 'Internal Temp (°C)',
+                data: internalTempData,
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                yAxisID: 'yTemp',
+                tension: 0.3
+            },
+            {
+                label: 'External Temp (°C)',
+                data: externalTempData,
+                borderColor: '#ffc107',
+                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                yAxisID: 'yTemp',
+                tension: 0.3
             }
-        } else {
-            console.warn('No data found in Firestore historical_readings collection');
-        }
-    } catch (error) {
-        console.error('Error fetching Firestore data:', error);
-    }
-}
+        ]
+    };
 
-// Listen for new documents in Firestore (real-time listener)
-function setupFirestoreListener() {
-    const readingsRef = firestore.collection('historical_readings');
-    const query = readingsRef.orderBy('timestamp', 'desc').limit(1);
-    
-    query.onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-                const data = change.doc.data();
-                const timestamp = convertTimestamp(data.timestamp);
-                
-                console.log('New Firestore reading detected:', data);
-                
-                // Add to buffer
-                addDataPoint(timestamp, data.pulseRaw, data.internalTemperature, data.externalTemperature);
-                updateRealtimePlot();
-                
-                // Update live cards
-                pulseElement.textContent = `${data.pulseRaw}`;
-                internalTempElement.textContent = `${data.internalTemperature.toFixed(1)} °C`;
-                externalTempElement.textContent = `${data.externalTemperature.toFixed(1)} °C`;
-                lastUpdateElement.textContent = timestamp.toLocaleTimeString();
-                connectionStatusElement.className = 'status--connected';
-                connectionStatusElement.innerHTML = '<i class="fa-solid fa-circle"></i> Connected';
+    if (healthChart) {
+        // If chart exists, update data and re-render
+        healthChart.data = chartData;
+        healthChart.update();
+    } else {
+        // If chart doesn't exist, create it
+        healthChart = new Chart(chartCanvas, {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    yPulse: {
+                        type: 'linear',
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Pulse (BPM)'
+                        }
+                    },
+                    yTemp: {
+                        type: 'linear',
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Temperature (°C)'
+                        },
+                        grid: {
+                            drawOnChartArea: false // only draw grid for first Y axis
+                        }
+                    }
+                }
             }
         });
-    }, (error) => {
-        console.error('Firestore listener error:', error);
-    });
+    }
+}
+
+// Function to fetch historical data for the chart
+async function fetchHistoryForChart() {
+    console.log("Fetching historical data for chart...");
+    const readingsRef = firestore.collection('historical_readings');
+    const query = readingsRef.orderBy('timestamp', 'desc').limit(20); // Get last 20 readings
+
+    try {
+        const snapshot = await query.get();
+        if (snapshot.empty) {
+            console.log("No historical data found for chart.");
+            return;
+        }
+
+        const historicalData = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            historicalData.push({
+                timestamp: data.timestamp.toDate(),
+                pulseRaw: data.pulseRaw,
+                internalTemperature: data.internalTemperature,
+                externalTemperature: data.externalTemperature
+            });
+        });
+
+        // Data is fetched desc, reverse to show oldest to newest on chart
+        initializeChart(historicalData.reverse());
+
+    } catch (error) {
+        console.error("Error fetching historical data for chart:", error);
+    }
 }
 
 // ===================================================================================
-// --- 6. EXECUTION ---
+// --- 5. EXECUTION ---
 // ===================================================================================
-initializePlot();
+// Initial chart load when the page opens
+fetchHistoryForChart();
 
-// Initial load from Firestore
-fetchRecentFirestoreData();
-
-// Setup real-time listener for new Firestore documents
-setupFirestoreListener();
-
-// Fallback: Keep RTDB listener for immediate updates if still being used
-// (This ensures live cards update even if Firestore writes are delayed)
-latestReadingRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-        // Only update if Firestore hasn't provided data recently
-        if (dataBuffer.timestamps.length === 0) {
-            const updateTime = new Date(data.timestamp);
-            pulseElement.textContent = `${data.pulseRaw}`;
-            internalTempElement.textContent = `${data.internalTemperature.toFixed(1)} °C`;
-            externalTempElement.textContent = `${data.externalTemperature.toFixed(1)} °C`;
-            lastUpdateElement.textContent = updateTime.toLocaleTimeString();
-            connectionStatusElement.className = 'status--connected';
-            connectionStatusElement.innerHTML = '<i class="fa-solid fa-circle"></i> Connected (RTDB)';
-        }
-    }
-});
-
-console.log('Real-time dashboard initialized. Fetching from Firestore and listening for updates...');
-
+// Refresh the chart every 60 seconds (60000 milliseconds)
+setInterval(fetchHistoryForChart, 60000);
