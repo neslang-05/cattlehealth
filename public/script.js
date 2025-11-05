@@ -2,17 +2,29 @@
 // --- 1. FIREBASE CONFIGURATION (Modified for Vercel Environment Variables) ---
 // ===================================================================================
 
+// const firebaseConfig = {
+//     // Vercel uses process.env.VARIABLE_NAME to inject values
+//     // We use NEXT_PUBLIC_ prefix as a standard convention for public keys
+//     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+//     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+//     databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+//     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+//     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+//     messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+//     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+// };
+
 const firebaseConfig = {
-    // Vercel uses process.env.VARIABLE_NAME to inject values
-    // We use NEXT_PUBLIC_ prefix as a standard convention for public keys
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  apiKey: "AIzaSyAj7CcqeWrUemoyvATYDrT9PpdiIbye_lQ",
+  authDomain: "cattlehealthmonitoring-e1459.firebaseapp.com",
+  databaseURL: "https://cattlehealthmonitoring-e1459-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "cattlehealthmonitoring-e1459",
+  storageBucket: "cattlehealthmonitoring-e1459.firebasestorage.app",
+  messagingSenderId: "1044738365075",
+  appId: "1:1044738365075:web:e7dc0ee6f01ccfdbf05f66",
+  measurementId: "G-YC1VF9N0YL"
 };
+
 
 // ===================================================================================
 // --- 2. INITIALIZATION ---
