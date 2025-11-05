@@ -1,0 +1,114 @@
+/* --- Global Styles & Variables (Unchanged) --- */
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --bg-color: #f8f9fa;
+    --sidebar-bg: #343a40;
+    --card-bg: #ffffff;
+    --text-color: #495057;
+    --text-light: #f8f9fa;
+    --border-color: #dee2e6;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+/* --- Layout Grid (sidebar removed) --- */
+.grid-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "header" "main";
+    height: 100vh;
+}
+.header { grid-area: header; }
+.main-content { grid-area: main; }
+
+.header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1.5rem 2rem; background-color: var(--card-bg); border-bottom: 1px solid var(--border-color);
+}
+.header__title h1 { font-size: 1.5rem; font-weight: 600; }
+.header__title p { font-size: 0.9rem; color: var(--secondary-color); }
+.header__status span { font-weight: 600; }
+.status--connected { color: #28a745; }
+.status--disconnected { color: #dc3545; }
+.status--connected .fa-circle, .status--disconnected .fa-circle { font-size: 0.8em; animation: pulse 2s infinite; }
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+/* Sidebar styles removed - not used after layout simplification */
+
+/* --- Main Content & Live Cards (Unchanged) --- */
+.main-content { padding: 2rem; overflow-y: auto; }
+.live-status {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem; margin-bottom: 2rem;
+}
+.card {
+    display: flex; align-items: center; background-color: var(--card-bg); padding: 1.5rem;
+    border-radius: 12px; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12); }
+.card__icon { font-size: 2rem; color: var(--primary-color); margin-right: 1.5rem; }
+.card__title { font-weight: 600; color: var(--secondary-color); margin-bottom: 0.25rem; }
+.card__data { font-size: 1.75rem; font-weight: 700; color: var(--text-color); }
+#last-update { font-size: 1.5rem; }
+
+/* --- NEW: Historical Table Styles --- */
+/* --- Real-time Visualization Styles --- */
+.realtime-viz-container {
+    background-color: var(--card-bg);
+    padding: 1.5rem 2rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+.viz-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.viz-header h2 {
+    font-weight: 600;
+    margin: 0;
+}
+.history-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+.history-link:hover {
+    background-color: #0056b3;
+}
+#realtime-plot {
+    width: 100%;
+    min-height: 400px;
+    background: transparent;
+}
+
+/* --- Responsive Design (Unchanged) --- */
+@media (max-width: 992px) {
+    .grid-container {
+        grid-template-columns: 1fr; grid-template-rows: auto 1fr;
+        grid-template-areas: "header" "main"; height: auto;
+    }
+}
+@media (max-width: 768px) {
+    .header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .main-content { padding: 1.5rem; }
+}

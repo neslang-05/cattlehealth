@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cattle Health Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="grid-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header__title">
+                <h1>Cattle Health Monitor</h1>
+                <p>Real-time health and environmental data for Cow #1</p>
+            </div>
+            <div class="header__status">
+                <span>Status:</span>
+                <span id="connection-status" class="status--disconnected">
+                    <i class="fa-solid fa-circle"></i> Disconnected
+                </span>
+            </div>
+        </header>
+
+        <!-- Main Content (sidebar removed) -->
+        <main class="main-content">
+            <!-- Live Data Cards -->
+            <section class="live-status">
+                <div class="card">
+                    <div class="card__icon"><i class="fa-solid fa-heart-pulse"></i></div>
+                    <div class="card__info">
+                        <p class="card__title">Pulse</p>
+                        <p class="card__data" id="live-pulse">--</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card__icon"><i class="fa-solid fa-temperature-full"></i></div>
+                    <div class="card__info">
+                        <p class="card__title">Internal Temp</p>
+                        <p class="card__data" id="live-internal-temp">-- &deg;C</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card__icon"><i class="fa-solid fa-sun"></i></div>
+                    <div class="card__info">
+                        <p class="card__title">External Temp</p>
+                        <p class="card__data" id="live-external-temp">-- &deg;C</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card__icon"><i class="fa-regular fa-clock"></i></div>
+                    <div class="card__info">
+                        <p class="card__title">Last Update</p>
+                        <p class="card__data" id="last-update">--</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Real-time Visualization (Plotly) -->
+            <section class="realtime-viz-container">
+                <div class="viz-header">
+                    <h2>Real-time Data Trends</h2>
+                    <a href="history.html" class="history-link">
+                        <i class="fa-solid fa-clock-rotate-left"></i> View Historical Data
+                    </a>
+                </div>
+                <div id="realtime-plot"></div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Plotly for real-time visualization -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    
+    <!-- Your Custom JavaScript -->
+    <script src="script.js"></script>
+
+</body>
+</html>
+
