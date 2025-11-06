@@ -1,18 +1,3 @@
-// ===================================================================================
-// --- 1. FIREBASE CONFIGURATION (Modified for Vercel Environment Variables) ---
-// ===================================================================================
-
-// const firebaseConfig = {
-//     // Vercel uses process.env.VARIABLE_NAME to inject values
-//     // We use NEXT_PUBLIC_ prefix as a standard convention for public keys
-//     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-//     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-//     databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-//     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-//     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-//     messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-//     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
-// };
 
 const firebaseConfig = {
   apiKey: "AIzaSyAj7CcqeWrUemoyvATYDrT9PpdiIbye_lQ",
@@ -25,10 +10,6 @@ const firebaseConfig = {
   measurementId: "G-YC1VF9N0YL"
 };
 
-
-// ===================================================================================
-// --- 2. INITIALIZATION ---
-// ===================================================================================
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const firestore = firebase.firestore();
@@ -41,12 +22,7 @@ const lastUpdateElement = document.getElementById('last-update');
 const connectionStatusElement = document.getElementById('connection-status');
 const chartCanvas = document.getElementById('health-chart');
 
-// Chart Variable
-let healthChart = null;
 
-// ===================================================================================
-// --- 3. REAL-TIME DATA LISTENER (For Live Cards - Unchanged) ---
-// ===================================================================================
 const latestReadingRef = database.ref('/cattle/cow_1/latest_reading');
 
 latestReadingRef.on('value', (snapshot) => {
@@ -67,134 +43,3 @@ latestReadingRef.on('value', (snapshot) => {
     }
 });
 
-// ===================================================================================
-// --- 4. NEW: CHART.JS VISUALIZATION ---
-// ===================================================================================
-
-// Function to initialize and update the chart
-function initializeChart(historicalData) {
-    if (!chartCanvas) return;
-
-    const labels = historicalData.map(d => new Date(d.timestamp).toLocaleTimeString());
-    const pulseData = historicalData.map(d => d.pulseRaw);
-    const internalTempData = historicalData.map(d => d.internalTemperature);
-    const externalTempData = historicalData.map(d => d.externalTemperature);
-
-    const chartData = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Pulse',
-                data: pulseData,
-                borderColor: '#007bff',
-                backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                yAxisID: 'yPulse',
-                tension: 0.3
-            },
-            {
-                label: 'Internal Temp (°C)',
-                data: internalTempData,
-                borderColor: '#28a745',
-                backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                yAxisID: 'yTemp',
-                tension: 0.3
-            },
-            {
-                label: 'External Temp (°C)',
-                data: externalTempData,
-                borderColor: '#ffc107',
-                backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                yAxisID: 'yTemp',
-                tension: 0.3
-            }
-        ]
-    };
-
-    if (healthChart) {
-        // If chart exists, update data and re-render
-        healthChart.data = chartData;
-        healthChart.update();
-    } else {
-        // If chart doesn't exist, create it
-        healthChart = new Chart(chartCanvas, {
-            type: 'line',
-            data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Time'
-                        }
-                    },
-                    yPulse: {
-                        type: 'linear',
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: 'Pulse (BPM)'
-                        }
-                    },
-                    yTemp: {
-                        type: 'linear',
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Temperature (°C)'
-                        },
-                        grid: {
-                            drawOnChartArea: false // only draw grid for first Y axis
-                        }
-                    }
-                }
-            }
-        });
-    }
-}
-
-// Function to fetch historical data for the chart
-async function fetchHistoryForChart() {
-    console.log("Fetching historical data for chart...");
-    const readingsRef = firestore.collection('historical_readings');
-    const query = readingsRef.orderBy('timestamp', 'desc').limit(20); // Get last 20 readings
-
-    try {
-        const snapshot = await query.get();
-        if (snapshot.empty) {
-            console.log("No historical data found for chart.");
-            return;
-        }
-
-        const historicalData = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            historicalData.push({
-                timestamp: data.timestamp.toDate(),
-                pulseRaw: data.pulseRaw,
-                internalTemperature: data.internalTemperature,
-                externalTemperature: data.externalTemperature
-            });
-        });
-
-        // Data is fetched desc, reverse to show oldest to newest on chart
-        initializeChart(historicalData.reverse());
-
-    } catch (error) {
-        console.error("Error fetching historical data for chart:", error);
-    }
-}
-
-// ===================================================================================
-// --- 5. EXECUTION ---
-// ===================================================================================
-// Initial chart load when the page opens
-fetchHistoryForChart();
-
-// Refresh the chart every 60 seconds (60000 milliseconds)
-setInterval(fetchHistoryForChart, 60000);
