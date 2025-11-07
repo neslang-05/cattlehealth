@@ -2,9 +2,14 @@
  * ===================================================================================
  * FINAL STABLE VERSION: ESP8266 Health Monitor Sketch 
  * ===================================================================================
- * Authur : Nilambar Elangbamb
- * Github : neslang-05
- * Email  : neslang.in@gmail.com
+ * Authur         : Nilambar Elangbamb
+ * Github         : https://github.com/neslang-05/cattlehealth.git
+ * Email          : neslang.in@gmail.com
+ * Date           : June 2024
+ * Description    : This sketch monitors the health parameters of cattle using ESP8266 and Firebase.
+ *                  It reads pulse and temperature data from sensors and uploads them to Firebase Realtime Database
+ *                  and Firestore for real-time monitoring and historical data storage.
+ * Libraries Used :  ESP8266WiFi, Firebase_ESP_Client, OneWire, DallasTemperature
  * ===================================================================================
  */
 
@@ -150,3 +155,5 @@ void loop() {
   Serial.printf("[INFO] Cycle end. Waiting 1s...\n");
   delay(1000);
 }
+
+
