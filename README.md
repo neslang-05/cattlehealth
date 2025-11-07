@@ -1,4 +1,4 @@
-#Smart Cattle Health Monitoring Dashboard
+# Smart Cattle Health Monitoring Dashboard
 
 A real-time web dashboard to monitor the health vitals of cattle using data streamed from an IoT sensor. This project provides a clean, responsive interface to visualize live data, ensuring timely insights into an animal's well-being.
 
