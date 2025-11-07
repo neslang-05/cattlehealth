@@ -2,8 +2,7 @@
 
 A real-time web dashboard to monitor the health vitals of cattle using data streamed from an IoT sensor. This project provides a clean, responsive interface to visualize live data, ensuring timely insights into an animal's well-being.
 
-![Dashboard Screenshot]([https://i.imgur.com/your-screenshot.png](https://raw.githubusercontent.com/neslang-05/cattlehealth/master/public/Dashboard_screenshot.png
-)) 
+![Dashboard Screenshot](https://raw.githubusercontent.com/neslang-05/cattlehealth/master/public/Dashboard_screenshot.png)
 
 ## Features
 
