@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cattle Health Monitoring Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <!-- Google Fonts: Space Grotesk (UI) + JetBrains Mono (data values) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <div class="app-shell">
+
+    <!-- ===== SIDEBAR: Device List ===== -->
+    <aside class="sidebar">
+      <div class="brand">
+        <p class="brand-kicker">IoT Livestock Ops</p>
+        <h1>Cattle Health</h1>
+      </div>
+
+      <div class="sidebar-block">
+        <div class="block-head">
+          <h2>Devices</h2>
+          <span id="deviceCount">0</span>
+        </div>
+        <!-- Populated dynamically from Firebase devices/ node -->
+        <ul id="deviceList" class="device-list"></ul>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN DASHBOARD ===== -->
+    <main class="dashboard">
+
+      <!-- Device Metadata Header -->
+      <header class="device-header panel">
+        <div>
+          <p class="section-kicker">Selected Device</p>
+          <h2 id="deviceName">No device selected</h2>
+        </div>
+        <p id="deviceStatus" class="pill offline">Offline</p>
+
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span>Location</span>
+            <strong id="deviceLocation">-</strong>
+          </div>
+          <div class="meta-item">
+            <span>MAC Address</span>
+            <strong id="deviceMac">-</strong>
+          </div>
+          <div class="meta-item">
+            <span>Firmware</span>
+            <strong id="deviceFirmware">-</strong>
+          </div>
+          <div class="meta-item">
+            <span>Last Seen</span>
+            <strong id="deviceLastSeen">-</strong>
+          </div>
+        </div>
+      </header>
+
+      <!-- Real-Time Sensor Cards -->
+      <!-- Cards turn red (.alert class) when values breach the thresholds defined in main.js -->
+      <section class="cards-grid" id="sensorCards">
+
+        <article class="sensor-card panel" data-metric="internal_temp">
+          <p>Internal Temp</p>
+          <h3 id="internalTempValue">--</h3>
+          <span class="warning-tag">&#9888; Alert</span>
+        </article>
+
+        <article class="sensor-card panel" data-metric="external_temp">
+          <p>External Temp</p>
+          <h3 id="externalTempValue">--</h3>
+          <span class="warning-tag">&#9888; Alert</span>
+        </article>
+
+        <article class="sensor-card panel" data-metric="heart_rate">
+          <p>Heart Rate</p>
+          <h3 id="heartRateValue">--</h3>
+          <span class="warning-tag">&#9888; Alert</span>
+        </article>
+
+        <article class="sensor-card panel" data-metric="spo2">
+          <p>SpO2</p>
+          <h3 id="spo2Value">--</h3>
+          <span class="warning-tag">&#9888; Alert</span>
+        </article>
+
+        <article class="sensor-card panel" data-metric="distance">
+          <p>Distance</p>
+          <h3 id="distanceValue">--</h3>
+          <span class="warning-tag">&#9888; Alert</span>
+        </article>
+
+      </section>
+
+      <!-- Historical Chart: last 15 readings -->
+      <section class="panel chart-panel">
+        <div class="block-head">
+          <h2>Recent Trends</h2>
+          <p>Last 15 readings &mdash; internal temp, external temp &amp; heart rate</p>
+        </div>
+        <canvas id="historyChart" aria-label="Historical telemetry chart"></canvas>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Entry point: Vite bundles this module, resolving all npm imports -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
