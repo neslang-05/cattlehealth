@@ -1,109 +1,76 @@
+/*
+=====================================================
+DOM Element Selection
+=====================================================
+*/
+const pulseElement = document.getElementById("pulse");
+const internalTempElement = document.getElementById("internalTemp");
+const externalTempElement = document.getElementById("externalTemp");
+const distanceElement = document.getElementById("distance");
+const timestampElement = document.getElementById("timestamp");
 
 /*
 =====================================================
 Firebase Configuration
 =====================================================
-Replace the values below with your firebase project
-credentials taken from Firebase console.
 */
-
-
 const firebaseConfig = {
-  apiKey: "AIzaSyAj7CcqeWrUemoyvATYDrT9PpdiIbye_lQ",
-  authDomain: "cattlehealthmonitoring-e1459.firebaseapp.com",
-  databaseURL: "https://cattlehealthmonitoring-e1459-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "cattlehealthmonitoring-e1459",
-  storageBucket: "cattlehealthmonitoring-e1459.firebasestorage.app",
-  messagingSenderId: "1044738365075",
-  appId: "1:1044738365075:web:e7dc0ee6f01ccfdbf05f66",
-  measurementId: "G-YC1VF9N0YL"
+  databaseURL: "https://cattlehealthmonitoring-e1459-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
-
-/*
-=====================================================
-Initialize Firebase
-=====================================================
-*/
-
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
-
 const db = firebase.database();
-
-
-
-/*
-=====================================================
-Reference to the ESP32 latest reading path
-=====================================================
-*/
-
 const dataRef = db.ref("/cattle/cow_1/latest_reading");
 
-
-
 /*
 =====================================================
-DOM Elements
+Realtime Data Listener
 =====================================================
 */
-
-const pulseElement = document.getElementById("pulse");
-
-const internalTempElement = document.getElementById("internalTemp");
-
-const externalTempElement = document.getElementById("externalTemp");
-
-const distanceElement = document.getElementById("distance");
-
-const timestampElement = document.getElementById("timestamp");
-
-
-
-/*
-=====================================================
-Realtime Firebase Listener
-=====================================================
-This listener triggers every time ESP32 pushes
-new data to Firebase.
-*/
+console.log("Monitoring Cattle Health at:", dataRef.toString());
 
 dataRef.on("value", (snapshot) => {
+  const data = snapshot.val();
+  
+  if (!data) {
+    console.warn("Waiting for data...");
+    timestampElement.textContent = "Waiting for data...";
+    return;
+  }
 
-const data = snapshot.val();
+  // Update values with fallbacks
+  pulseElement.textContent = data.pulseBPM ?? "0";
+  internalTempElement.textContent = data.internalTemperature ?? "0.00";
+  externalTempElement.textContent = data.externalTemperature ?? "0.00";
+  distanceElement.textContent = data.distanceCM ? Math.round(data.distanceCM) : "0";
 
-if (!data) return;
+  // Dynamic Status/Color effects
+  updateStatusColor(pulseElement, data.pulseBPM, 60, 100);
+  updateStatusColor(internalTempElement, data.internalTemperature, 37, 39);
 
+  // Update Timestamp
+  if (data.timestamp) {
+    const date = new Date(data.timestamp);
+    timestampElement.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
 
-
-/*
-=====================================================
-Update dashboard values
-=====================================================
-*/
-
-pulseElement.textContent = data.pulseBPM;
-
-internalTempElement.textContent = data.internalTemperature;
-
-externalTempElement.textContent = data.externalTemperature;
-
-distanceElement.textContent = data.distanceCM;
-
-
-
-/*
-=====================================================
-Convert timestamp to readable date
-=====================================================
-*/
-
-if(data.timestamp){
-
-const date = new Date(data.timestamp);
-
-timestampElement.textContent = date.toLocaleString();
-
-}
-
+}, (error) => {
+  console.error("Firebase Error:", error.code);
+  timestampElement.textContent = "Connection Error";
 });
+
+/**
+ * Utility to update text color based on thresholds
+ */
+function updateStatusColor(element, value, min, max) {
+  if (value === undefined || value === null) return;
+  
+  if (value < min || value > max) {
+    element.style.color = "var(--accent-danger)";
+    element.style.textShadow = "0 0 15px rgba(239, 68, 68, 0.4)";
+  } else {
+    element.style.color = "#fff";
+    element.style.textShadow = "none";
+  }
+}
