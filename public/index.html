@@ -1,95 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Health Solution for Cattle</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Cattle Health Monitoring Dashboard</title>
+
+<link rel="stylesheet" href="style.css">
+
+<!-- Firebase (Compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
 </head>
+
 <body>
 
-    <div class="grid-container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header__title">
-                <h1>Smart Health Solution for Cattle</h1>
-                <p>Real-time health and environmental data for Cow #1</p>
-            </div>
-            <div class="header__status">
-                <span>Status:</span>
-                <span id="connection-status" class="status--disconnected">
-                    <i class="fa-solid fa-circle"></i> Disconnected
-                </span>
-            </div>
-        </header>
+<header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Live Data Cards -->
-            <section class="live-status">
-                <div class="card">
-                    <div class="card__icon"><i class="fa-solid fa-heart-pulse"></i></div>
-                    <div class="card__info">
-                        <p class="card__title">Pulse</p>
-                        <p class="card__data" id="live-pulse">--</p>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card__icon"><i class="fa-solid fa-sun"></i></div>
-                    <div class="card__info">
-                        <p class="card__title">External Temp</p>
-                        <p class="card__data" id="live-internal-temp">-- &deg;C</p>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card__icon"><i class="fa-solid fa-temperature-full"></i></div>
-                    
-                    <div class="card__info">
-                        <p class="card__title">Internal Temp</p>
-                        <p class="card__data" id="live-external-temp">-- &deg;C</p>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card__icon"><i class="fa-regular fa-clock"></i></div>
-                    <div class="card__info">
-                        <p class="card__title">Last Update</p>
-                        <p class="card__data" id="last-update">--</p>
-                    </div>
-                </div>
-            </section>
+<h1>CATTLE HEALTH MONITORING SYSTEM</h1>
 
-            <!-- Description Section -->
-            <section class="description-container">
-                <h2>About the Data</h2>
-                <p>This dashboard displays live data streamed directly from the health monitoring sensor attached to Cow #1. The values update in real-time as new readings are received from the device.</p>
-                <ul>
-                    <li><strong>Pulse:</strong> The raw pulse reading from the sensor.</li>
-                    <li><strong>Internal Temp:</strong> The internal body temperature of the cow, measured in Celsius.</li>
-                    <li><strong>External Temp:</strong> The ambient temperature of the cow's immediate surroundings.</li>
-                    <li><strong>Last Update:</strong> The time the last data point was received.</li>
-                </ul>
-            </section>
-        </main>
-    </div>
+</header>
 
-    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
-    <script src="script.js"></script>
+<main>
 
-</body>
-</html>
-    <!-- Firebase SDKs (Unchanged) -->
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
-    
-    <!-- Your Custom JavaScript -->
-    <script src="script.js"></script>
+<section class="grid">
+
+<div class="card">
+
+<h2>Pulse Rate</h2>
+
+<p id="pulse">--</p>
+
+<span>BPM</span>
+
+</div>
+
+
+<div class="card">
+
+<h2>Internal Temperature</h2>
+
+<p id="internalTemp">--</p>
+
+<span>°C</span>
+
+</div>
+
+
+<div class="card">
+
+<h2>External Temperature</h2>
+
+<p id="externalTemp">--</p>
+
+<span>°C</span>
+
+</div>
+
+
+<div class="card">
+
+<h2>Distance</h2>
+
+<p id="distance">--</p>
+
+<span>cm</span>
+
+</div>
+
+
+<div class="card large">
+
+<h2>Last Update</h2>
+
+<p id="timestamp">Waiting for data...</p>
+
+</div>
+
+</section>
+
+</main>
+
+<script src="script.js"></script>
 
 </body>
 </html>

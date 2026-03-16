@@ -1,4 +1,13 @@
 
+/*
+=====================================================
+Firebase Configuration
+=====================================================
+Replace the values below with your firebase project
+credentials taken from Firebase console.
+*/
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyAj7CcqeWrUemoyvATYDrT9PpdiIbye_lQ",
   authDomain: "cattlehealthmonitoring-e1459.firebaseapp.com",
@@ -10,36 +19,91 @@ const firebaseConfig = {
   measurementId: "G-YC1VF9N0YL"
 };
 
+
+/*
+=====================================================
+Initialize Firebase
+=====================================================
+*/
+
 firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-const firestore = firebase.firestore();
 
-// DOM Elements
-const pulseElement = document.getElementById('live-pulse');
-const internalTempElement = document.getElementById('live-internal-temp');
-const externalTempElement = document.getElementById('live-external-temp');
-const lastUpdateElement = document.getElementById('last-update');
-const connectionStatusElement = document.getElementById('connection-status');
-const chartCanvas = document.getElementById('health-chart');
+const db = firebase.database();
 
 
-const latestReadingRef = database.ref('/cattle/cow_1/latest_reading');
 
-latestReadingRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-        connectionStatusElement.className = 'status--connected';
-        connectionStatusElement.innerHTML = '<i class="fa-solid fa-circle"></i> Connected';
-        
-        pulseElement.textContent = `${data.pulseRaw}`;
-        internalTempElement.textContent = `${data.internalTemperature.toFixed(1)} °C`;
-        externalTempElement.textContent = `${data.externalTemperature.toFixed(1)} °C`;
-        
-        const updateTime = new Date(data.timestamp);
-        lastUpdateElement.textContent = updateTime.toLocaleTimeString();
-    } else {
-        connectionStatusElement.className = 'status--disconnected';
-        connectionStatusElement.innerHTML = '<i class="fa-solid fa-circle"></i> No Data';
-    }
+/*
+=====================================================
+Reference to the ESP32 latest reading path
+=====================================================
+*/
+
+const dataRef = db.ref("/cattle/cow_1/latest_reading");
+
+
+
+/*
+=====================================================
+DOM Elements
+=====================================================
+*/
+
+const pulseElement = document.getElementById("pulse");
+
+const internalTempElement = document.getElementById("internalTemp");
+
+const externalTempElement = document.getElementById("externalTemp");
+
+const distanceElement = document.getElementById("distance");
+
+const timestampElement = document.getElementById("timestamp");
+
+
+
+/*
+=====================================================
+Realtime Firebase Listener
+=====================================================
+This listener triggers every time ESP32 pushes
+new data to Firebase.
+*/
+
+dataRef.on("value", (snapshot) => {
+
+const data = snapshot.val();
+
+if (!data) return;
+
+
+
+/*
+=====================================================
+Update dashboard values
+=====================================================
+*/
+
+pulseElement.textContent = data.pulseBPM;
+
+internalTempElement.textContent = data.internalTemperature;
+
+externalTempElement.textContent = data.externalTemperature;
+
+distanceElement.textContent = data.distanceCM;
+
+
+
+/*
+=====================================================
+Convert timestamp to readable date
+=====================================================
+*/
+
+if(data.timestamp){
+
+const date = new Date(data.timestamp);
+
+timestampElement.textContent = date.toLocaleString();
+
+}
+
 });
-
