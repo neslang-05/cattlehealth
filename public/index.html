@@ -1,93 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cattle Health Monitoring System</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Cattle Health Monitoring Dashboard</title>
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
-
-<!-- Firebase (Compat) -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-
+  <!-- Firebase (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
 </head>
-
 <body>
 
-<header>
+  <header>
+    <div class="header-container">
+      <div class="header-title">
+        <span class="sub-label">Cattle Health Monitor</span>
+        <h1>Sensor Data Overview</h1>
+      </div>
+      <div class="live-badge">
+        <span class="badge-dot"></span>
+        Live
+      </div>
+    </div>
+  </header>
 
-<h1>CATTLE HEALTH MONITORING SYSTEM</h1>
+  <main>
+    <div class="grid">
+      <!-- Pulse Rate Card -->
+      <div class="card pulse-card">
+        <span class="card-label">Pulse Rate</span>
+        <p><span id="pulse">--</span><span class="unit">BPM</span></p>
+        <div id="pulse-badge" class="status-badge status-neutral">Sensor active</div>
+      </div>
 
-</header>
+      <!-- Internal Temp Card -->
+      <div class="card internal-card">
+        <span class="card-label">External Temp</span>
+        <p><span id="internalTemp">--</span><span class="unit">°C</span></p>
+        <div id="internal-badge" class="status-badge status-neutral">Sensor active</div>
+      </div>
 
-<main>
+      <!-- External Temp Card -->
+      <div class="card external-card">
+        <span class="card-label">Internal Temp</span>
+        <p><span id="externalTemp">--</span><span class="unit">°C</span></p>
+        <div id="external-badge" class="status-badge status-neutral">Sensor active</div>
+      </div>
 
-<section class="grid">
+      <!-- Distance Card -->
+      <div class="card distance-card">
+        <span class="card-label">Distance</span>
+        <p><span id="distance">--</span><span class="unit">cm</span></p>
+        <div id="distance-badge" class="status-badge status-neutral">Sensor active</div>
+      </div>
+    </div>
+  </main>
 
-<div class="card">
+  <footer>
+    <div class="footer-bar">
+      <div class="footer-left">
+        <span class="pulsing-dot"></span>
+        Last updated: <span id="timestamp-val">DM MONO TIME</span>
+      </div>
+      <div class="footer-right">
+        cow_1 · Firebase RTDB
+      </div>
+    </div>
+  </footer>
 
-<h2>Pulse Rate</h2>
-
-<p id="pulse">--</p>
-
-<span>BPM</span>
-
-</div>
-
-
-<div class="card">
-
-<h2>Internal Temperature</h2>
-
-<p id="internalTemp">--</p>
-
-<span>°C</span>
-
-</div>
-
-
-<div class="card">
-
-<h2>External Temperature</h2>
-
-<p id="externalTemp">--</p>
-
-<span>°C</span>
-
-</div>
-
-
-<div class="card">
-
-<h2>Distance</h2>
-
-<p id="distance">--</p>
-
-<span>cm</span>
-
-</div>
-
-
-<div class="card large">
-
-<h2>Last Update</h2>
-
-<p id="timestamp">Waiting for data...</p>
-
-</div>
-
-</section>
-
-</main>
-
-<script src="script.js"></script>
-
+  <script src="script.js"></script>
 </body>
 </html>
