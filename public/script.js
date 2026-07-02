@@ -18,6 +18,9 @@ const DEVICES = [
 // How long (ms) without data before marking a device offline
 const OFFLINE_THRESHOLD_MS = 30000;
 
+// Max data points to keep in the rolling history chart
+const MAX_HISTORY_POINTS = 30;
+
 /* =====================================================
    Firebase Configuration
 ===================================================== */
@@ -316,82 +319,52 @@ function renderChart(deviceId) {
 }
 
 /* =====================================================
-   Firestore — historical data per device
+   Firebase RTDB — seed chart from persistent history on page load
 ===================================================== */
-async function fetchHistory(deviceId) {
-  try {
-    // Query filtered by deviceId (requires firmware patch).
-    // Falls back gracefully to showing all docs if deviceId is missing.
-    const snapshot = await fs.collection('historical_readings')
-      .where('deviceId', '==', deviceId)
-      .orderBy('timestamp', 'desc')
-      .limit(30)
-      .get();
+function seedHistoryFromRTDB(deviceId) {
+  db.ref(`/cattle/${deviceId}/history`)
+    .orderByKey()
+    .limitToLast(MAX_HISTORY_POINTS)
+    .once('value', snapshot => {
+      if (!snapshot.exists()) return;
 
-    const rows = [];
-    snapshot.forEach(doc => rows.push(doc.data()));
-    rows.reverse();
+      const rows = [];
+      snapshot.forEach(child => rows.push(child.val()));
+      // Firebase push keys are time-sorted ascending — already chronological
 
-    const state = deviceState[deviceId];
-    state.chartData.labels       = rows.map(d => {
-      const date = d.timestamp?.toDate ? d.timestamp.toDate() : new Date(d.timestamp);
-      return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      // Clear any partial data before seeding
+      const cd = deviceState[deviceId].chartData;
+      cd.labels       = [];
+      cd.pulse        = [];
+      cd.internalTemp = [];
+      cd.externalTemp = [];
+
+      rows.forEach(data => pushToHistory(deviceId, data));
+      console.log(`[${deviceId}] Seeded ${rows.length} history points from RTDB.`);
+    }, err => {
+      console.warn(`[${deviceId}] History seed error:`, err.message);
     });
-    state.chartData.pulse        = rows.map(d => d.pulseBPM);
-    state.chartData.internalTemp = rows.map(d => d.internalTemperature);
-    state.chartData.externalTemp = rows.map(d => d.externalTemperature);
-
-    renderChart(deviceId);
-  } catch (err) {
-    console.warn(`[${deviceId}] Firestore error:`, err.message);
-
-    /* If the composite index doesn't exist yet, fall back to unfiltered query */
-    if (err.code === 'failed-precondition' || err.code === 'unimplemented') {
-      fetchHistoryFallback(deviceId);
-    }
-  }
-}
-
-/* Fallback: load the last 30 docs without deviceId filter (single-device scenario) */
-async function fetchHistoryFallback(deviceId) {
-  if (deviceId !== DEVICES[0].id) return; // only meaningful for the primary device
-  try {
-    const snapshot = await fs.collection('historical_readings')
-      .orderBy('timestamp', 'desc')
-      .limit(30)
-      .get();
-
-    const rows = [];
-    snapshot.forEach(doc => rows.push(doc.data()));
-    rows.reverse();
-
-    const state = deviceState[deviceId];
-    state.chartData.labels       = rows.map(d => {
-      const date = d.timestamp?.toDate ? d.timestamp.toDate() : new Date(d.timestamp);
-      return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    });
-    state.chartData.pulse        = rows.map(d => d.pulseBPM);
-    state.chartData.internalTemp = rows.map(d => d.internalTemperature);
-    state.chartData.externalTemp = rows.map(d => d.externalTemperature);
-
-    renderChart(deviceId);
-  } catch (err) {
-    console.error(`[${deviceId}] Firestore fallback error:`, err);
-  }
 }
 
 /* =====================================================
    Firebase RTDB — live listener per device
+   Also feeds the rolling history chart buffer.
 ===================================================== */
 function attachRtdbListener(deviceId) {
   const ref = db.ref(`/cattle/${deviceId}/latest_reading`);
   deviceState[deviceId].rtdbRef = ref;
+
+  // Pre-populate chart from stored history before live stream starts
+  seedHistoryFromRTDB(deviceId);
 
   ref.on('value', snapshot => {
     const data = snapshot.val();
     if (!data) return;
 
     deviceState[deviceId].lastSeen = Date.now();
+
+    /* Append to rolling history chart buffer */
+    pushToHistory(deviceId, data);
 
     /* If this is the currently active tab, update footer timestamp */
     if (deviceId === activeDeviceId && data.timestamp) {
@@ -407,6 +380,43 @@ function attachRtdbListener(deviceId) {
     console.error(`[${deviceId}] RTDB error:`, err.code);
     markOffline(deviceId);
   });
+}
+
+
+/**
+ * Push one RTDB reading into the per-device ring buffer and re-render the chart.
+ * Skips duplicate timestamps so reconnects don't duplicate the last point.
+ */
+function pushToHistory(deviceId, data) {
+  const state = deviceState[deviceId];
+  const cd    = state.chartData;
+
+  // Label from Firebase server timestamp (ms epoch)
+  const ts = data.timestamp
+    ? new Date(data.timestamp).toLocaleTimeString('en-GB', {
+        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+      })
+    : new Date().toLocaleTimeString('en-GB', {
+        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+
+  // Skip if this exact timestamp label is already the last entry (duplicate on reconnect)
+  if (cd.labels.length > 0 && cd.labels[cd.labels.length - 1] === ts) return;
+
+  cd.labels.push(ts);
+  cd.pulse.push(data.pulseBPM ?? 0);
+  cd.internalTemp.push(data.internalTemperature ?? null);
+  cd.externalTemp.push(data.externalTemperature ?? null);
+
+  // Keep rolling window at MAX_HISTORY_POINTS
+  if (cd.labels.length > MAX_HISTORY_POINTS) {
+    cd.labels.shift();
+    cd.pulse.shift();
+    cd.internalTemp.shift();
+    cd.externalTemp.shift();
+  }
+
+  renderChart(deviceId);
 }
 
 /* =====================================================
@@ -510,14 +520,8 @@ function bootstrap() {
 
   DEVICES.forEach(({ id }) => {
     initChart(id);
-    attachRtdbListener(id);
-    fetchHistory(id);
+    attachRtdbListener(id); // history is built live from RTDB stream
   });
-
-  // Refresh history every 30 s for the active device
-  setInterval(() => {
-    fetchHistory(activeDeviceId);
-  }, 30000);
 
   startOfflineWatchdog();
 }

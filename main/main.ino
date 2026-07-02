@@ -38,16 +38,17 @@ Cloud  : Firebase RTDB + Firestore
 
 /* DEVICE IDENTITY — change this per device (cow_1, cow_2, cow_3, ...) */
 
-#define DEVICE_ID "cow_1"
+#define DEVICE_ID "cow_2"
 
 /* DATABASE PATHS */
 
-const char* RTDB_LATEST_PATH     = "/cattle/" DEVICE_ID "/latest_reading";
-const char* FIRESTORE_COLLECTION = "historical_readings";
+const char* RTDB_LATEST_PATH  = "/cattle/" DEVICE_ID "/latest_reading";
+const char* RTDB_HISTORY_PATH = "/cattle/" DEVICE_ID "/history";
 
 /* FIREBASE OBJECTS */
 
-FirebaseData   fbdo;
+FirebaseData   fbdo;   // used for latest_reading writes
+FirebaseData   fbdo2;  // used for history push writes
 FirebaseAuth   auth;
 FirebaseConfig config;
 
@@ -229,8 +230,7 @@ void loop()
 
     if (!Firebase.ready())
     {
-      Serial.print("UPLOAD SKIPPED: Firebase not ready. Auth state: ");
-      Serial.println((int)auth.token.status);
+      Serial.println("UPLOAD SKIPPED: Firebase not ready (token refresh in progress).");
       return;
     }
 
@@ -258,8 +258,18 @@ void loop()
     reusableJson.set("timestamp", timestamp);
 
     if (!Firebase.RTDB.setJSON(&fbdo, RTDB_LATEST_PATH, &reusableJson))
-      Serial.println("RTDB ERROR: " + fbdo.errorReason());
+    {
+      Serial.println("RTDB latest ERROR: " + fbdo.errorReason());
+    }
     else
-      Serial.println("RTDB upload successful.");
+    {
+      Serial.println("RTDB latest upload successful.");
+
+      /* Push same payload to persistent history list */
+      if (!Firebase.RTDB.pushJSON(&fbdo2, RTDB_HISTORY_PATH, &reusableJson))
+        Serial.println("RTDB history ERROR: " + fbdo2.errorReason());
+      else
+        Serial.println("RTDB history push successful.");
+    }
   }
 }
