@@ -36,9 +36,13 @@ Cloud  : Firebase RTDB + Firestore
 #define TRIG_PIN     5
 #define ECHO_PIN     18
 
+/* DEVICE IDENTITY — change this per device (cow_1, cow_2, cow_3, ...) */
+
+#define DEVICE_ID "cow_1"
+
 /* DATABASE PATHS */
 
-const char* RTDB_LATEST_PATH     = "/cattle/cow_1/latest_reading";
+const char* RTDB_LATEST_PATH     = "/cattle/" DEVICE_ID "/latest_reading";
 const char* FIRESTORE_COLLECTION = "historical_readings";
 
 /* FIREBASE OBJECTS */
@@ -217,8 +221,18 @@ void loop()
   {
     lastUploadTime = now;
 
-    if (WiFi.status() != WL_CONNECTED || !Firebase.ready())
+    if (WiFi.status() != WL_CONNECTED)
+    {
+      Serial.println("UPLOAD SKIPPED: WiFi disconnected.");
       return;
+    }
+
+    if (!Firebase.ready())
+    {
+      Serial.print("UPLOAD SKIPPED: Firebase not ready. Auth state: ");
+      Serial.println((int)auth.token.status);
+      return;
+    }
 
     tempSensors.requestTemperatures();
     float internalTemp = tempSensors.getTempCByIndex(0);
@@ -233,6 +247,7 @@ void loop()
     Serial.println("===========================================\n");
 
     reusableJson.clear();
+    reusableJson.set("deviceId",            DEVICE_ID);
     reusableJson.set("pulseBPM",            currentBPM);
     reusableJson.set("internalTemperature", internalTemp);
     reusableJson.set("externalTemperature", externalTemp);
