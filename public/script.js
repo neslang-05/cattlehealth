@@ -104,11 +104,7 @@ DEVICES.forEach((device, index) => {
         <div id="${device.id}-external-badge" class="status-badge status-neutral">Sensor active</div>
       </div>
 
-      <div class="card distance-card">
-        <span class="card-label">Distance</span>
-        <p><span id="${device.id}-distance">--</span><span class="unit">cm</span></p>
-        <div id="${device.id}-distance-badge" class="status-badge status-neutral">Sensor active</div>
-      </div>
+     
     </div>
 
     <!-- History chart -->
