@@ -31,8 +31,8 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const db   = firebase.database();
-const fs   = firebase.firestore();
+const db = firebase.database();
+const fs = firebase.firestore();
 const auth = firebase.auth();
 
 /* =====================================================
@@ -44,17 +44,17 @@ const deviceState = {};
 /* =====================================================
    DOM Bootstrap — build tabs + panels from DEVICES list
 ===================================================== */
-const tabNav        = document.getElementById('device-tabs');
+const tabNav = document.getElementById('device-tabs');
 const panelsWrapper = document.getElementById('panels-container');
-const timestampEl   = document.getElementById('timestamp-val');
-const footerDevEl   = document.getElementById('footer-device-label');
+const timestampEl = document.getElementById('timestamp-val');
+const footerDevEl = document.getElementById('footer-device-label');
 
 let activeDeviceId = DEVICES[0].id;
 
 DEVICES.forEach((device, index) => {
   /* ── Tab button ── */
   const btn = document.createElement('button');
-  btn.id        = `tab-btn-${device.id}`;
+  btn.id = `tab-btn-${device.id}`;
   btn.className = `tab-btn${index === 0 ? ' active' : ''}`;
   btn.setAttribute('role', 'tab');
   btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
@@ -71,7 +71,7 @@ DEVICES.forEach((device, index) => {
 
   /* ── Device panel ── */
   const panel = document.createElement('section');
-  panel.id        = `panel-${device.id}`;
+  panel.id = `panel-${device.id}`;
   panel.className = `device-panel${index === 0 ? ' active' : ''}`;
   panel.setAttribute('role', 'tabpanel');
   panel.setAttribute('aria-labelledby', `tab-btn-${device.id}`);
@@ -93,13 +93,13 @@ DEVICES.forEach((device, index) => {
       </div>
 
       <div class="card internal-card">
-        <span class="card-label">External Temp</span>
+        <span class="card-label">Internal Temp</span>
         <p><span id="${device.id}-internalTemp">--</span><span class="unit">°C</span></p>
         <div id="${device.id}-internal-badge" class="status-badge status-neutral">Sensor active</div>
       </div>
 
       <div class="card external-card">
-        <span class="card-label">Internal Temp</span>
+        <span class="card-label">External Temp</span>
         <p><span id="${device.id}-externalTemp">--</span><span class="unit">°C</span></p>
         <div id="${device.id}-external-badge" class="status-badge status-neutral">Sensor active</div>
       </div>
@@ -131,11 +131,11 @@ DEVICES.forEach((device, index) => {
 
   /* ── Initialise per-device state ── */
   deviceState[device.id] = {
-    chart:       null,
-    chartData:   { labels: [], pulse: [], internalTemp: [], externalTemp: [] },
+    chart: null,
+    chartData: { labels: [], pulse: [], internalTemp: [], externalTemp: [] },
     currentView: 'pulse',
-    lastSeen:    null,
-    rtdbRef:     null,
+    lastSeen: null,
+    rtdbRef: null,
   };
 });
 
@@ -277,7 +277,7 @@ function initChart(deviceId) {
 
   /* Wire up toggle buttons for this device */
   const btnPulse = document.getElementById(`${deviceId}-btn-pulse`);
-  const btnTemp  = document.getElementById(`${deviceId}-btn-temp`);
+  const btnTemp = document.getElementById(`${deviceId}-btn-temp`);
 
   btnPulse.addEventListener('click', () => {
     deviceState[deviceId].currentView = 'pulse';
@@ -303,15 +303,15 @@ function renderChart(deviceId) {
   chart.data.labels = chartData.labels;
 
   if (currentView === 'pulse') {
-    chart.data.datasets[0].data   = chartData.pulse;
+    chart.data.datasets[0].data = chartData.pulse;
     chart.data.datasets[0].hidden = false;
     chart.data.datasets[1].hidden = true;
     chart.data.datasets[2].hidden = true;
   } else {
     chart.data.datasets[0].hidden = true;
-    chart.data.datasets[1].data   = chartData.internalTemp;
+    chart.data.datasets[1].data = chartData.internalTemp;
     chart.data.datasets[1].hidden = false;
-    chart.data.datasets[2].data   = chartData.externalTemp;
+    chart.data.datasets[2].data = chartData.externalTemp;
     chart.data.datasets[2].hidden = false;
   }
 
@@ -334,8 +334,8 @@ function seedHistoryFromRTDB(deviceId) {
 
       // Clear any partial data before seeding
       const cd = deviceState[deviceId].chartData;
-      cd.labels       = [];
-      cd.pulse        = [];
+      cd.labels = [];
+      cd.pulse = [];
       cd.internalTemp = [];
       cd.externalTemp = [];
 
@@ -389,16 +389,16 @@ function attachRtdbListener(deviceId) {
  */
 function pushToHistory(deviceId, data) {
   const state = deviceState[deviceId];
-  const cd    = state.chartData;
+  const cd = state.chartData;
 
   // Label from Firebase server timestamp (ms epoch)
   const ts = data.timestamp
     ? new Date(data.timestamp).toLocaleTimeString('en-GB', {
-        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
-      })
+      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    })
     : new Date().toLocaleTimeString('en-GB', {
-        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
-      });
+      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
 
   // Skip if this exact timestamp label is already the last entry (duplicate on reconnect)
   if (cd.labels.length > 0 && cd.labels[cd.labels.length - 1] === ts) return;
@@ -425,15 +425,15 @@ function pushToHistory(deviceId, data) {
 function updateCards(deviceId, data) {
   const get = id => document.getElementById(`${deviceId}-${id}`);
 
-  const pulseEl    = get('pulse');
-  const intTempEl  = get('internalTemp');
-  const extTempEl  = get('externalTemp');
-  const distEl     = get('distance');
+  const pulseEl = get('pulse');
+  const intTempEl = get('internalTemp');
+  const extTempEl = get('externalTemp');
+  const distEl = get('distance');
 
-  if (pulseEl)   pulseEl.textContent   = data.pulseBPM ?? '--';
+  if (pulseEl) pulseEl.textContent = data.pulseBPM ?? '--';
   if (intTempEl) intTempEl.textContent = data.internalTemperature != null ? data.internalTemperature.toFixed(2) : '--';
   if (extTempEl) extTempEl.textContent = data.externalTemperature != null ? data.externalTemperature.toFixed(2) : '--';
-  if (distEl)    distEl.textContent    = data.distanceCM != null ? Math.round(data.distanceCM) : '--';
+  if (distEl) distEl.textContent = data.distanceCM != null ? Math.round(data.distanceCM) : '--';
 
   /* Pulse badge */
   const pulseBadge = get('pulse-badge');
@@ -463,7 +463,7 @@ function updateCards(deviceId, data) {
 function setBadge(el, text, cls) {
   if (!el) return;
   el.textContent = text;
-  el.className   = `status-badge ${cls}`;
+  el.className = `status-badge ${cls}`;
 }
 
 /* =====================================================
