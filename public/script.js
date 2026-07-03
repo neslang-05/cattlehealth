@@ -318,11 +318,18 @@ function renderChart(deviceId) {
    Firebase RTDB — seed chart from persistent history on page load
 ===================================================== */
 function seedHistoryFromRTDB(deviceId) {
-  db.ref(`/cattle/${deviceId}/history`)
+  const historyPath = `/cattle/${deviceId}/history`;
+  console.log(`[${deviceId}] Attempting to seed history from: ${historyPath}`);
+
+  db.ref(historyPath)
     .orderByKey()
     .limitToLast(MAX_HISTORY_POINTS)
     .once('value', snapshot => {
-      if (!snapshot.exists()) return;
+      if (!snapshot.exists()) {
+        console.warn(`[${deviceId}] No history data found at path: ${historyPath}. ` +
+          `Check that your device writes to this path (not just latest_reading).`);
+        return;
+      }
 
       const rows = [];
       snapshot.forEach(child => rows.push(child.val()));
@@ -336,9 +343,14 @@ function seedHistoryFromRTDB(deviceId) {
       cd.externalTemp = [];
 
       rows.forEach(data => pushToHistory(deviceId, data));
-      console.log(`[${deviceId}] Seeded ${rows.length} history points from RTDB.`);
+      console.log(`[${deviceId}] ✅ Seeded ${rows.length} history points from RTDB.`);
     }, err => {
-      console.warn(`[${deviceId}] History seed error:`, err.message);
+      console.error(`[${deviceId}] ❌ History seed FAILED — code: ${err.code}, message: ${err.message}`);
+      if (err.code === 'PERMISSION_DENIED') {
+        console.error(`[${deviceId}] → RTDB rules are blocking reads. ` +
+          `Enable Anonymous Auth in Firebase Console (Authentication → Sign-in method) ` +
+          `or open your RTDB rules to allow public reads.`);
+      }
     });
 }
 
@@ -528,15 +540,24 @@ function bootstrap() {
 ===================================================== */
 auth.onAuthStateChanged(user => {
   if (user) {
+    console.log('✅ Firebase Auth: signed in as', user.uid, '(anonymous:', user.isAnonymous, ')');
     // Signed in — safe to attach Firebase listeners
     bootstrap();
+  } else {
+    console.log('Firebase Auth: no user session yet, waiting for signInAnonymously...');
   }
 });
 
 // Trigger anonymous sign-in
-auth.signInAnonymously().catch(err => {
-  console.error('Firebase anonymous auth failed:', err.code, err.message);
-  // Auth is disabled or blocked — fall back to unauthenticated listeners
-  // (works if RTDB rules allow public reads)
-  bootstrap();
-});
+auth.signInAnonymously()
+  .then(() => console.log('✅ signInAnonymously() succeeded.'))
+  .catch(err => {
+    console.error('❌ Firebase anonymous auth FAILED:', err.code, err.message);
+    if (err.code === 'auth/operation-not-allowed') {
+      console.error('→ Anonymous sign-in is DISABLED in Firebase Console. ' +
+        'Go to Authentication → Sign-in method → Enable Anonymous.');
+    }
+    // Auth is disabled or blocked — fall back to unauthenticated listeners
+    // (works if RTDB rules allow public reads)
+    bootstrap();
+  });
