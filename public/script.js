@@ -10,9 +10,12 @@
    CONFIGURATION — edit this list to add/remove devices
 ===================================================== */
 const DEVICES = [
-  { id: 'cow_1', label: 'Cow 1' },
-  { id: 'cow_2', label: 'Cow 2' },
-  { id: 'cow_3', label: 'Cow 3' },
+  { id: 'cow_1', label: 'Cow 1', mode: 'firebase' },
+  { id: 'cow_2', label: 'Cow 2', mode: 'firebase' },
+  { id: 'cow_3', label: 'Cow 3', mode: 'simulated', demoLabel: 'Healthy Baseline' },
+  { id: 'cow_4', label: 'Cow 4', mode: 'simulated', demoLabel: 'Elevated Temp Alert' },
+  { id: 'cow_5', label: 'Cow 5', mode: 'simulated', demoLabel: 'Low Temp Warning' },
+  { id: 'cow_6', label: 'Cow 6', mode: 'simulated', demoLabel: 'Active Grazing' },
 ];
 
 // How long (ms) without data before marking a device offline
@@ -157,6 +160,7 @@ function switchTab(id) {
 
   /* Update footer */
   footerDevEl.textContent = id;
+  updateFooterSource(id);
 
   /* Resize chart (needed after display:none → block) */
   const state = deviceState[id];
@@ -184,6 +188,7 @@ const CHART_COLORS = [
 ];
 
 function initChart(deviceId) {
+  if (deviceState[deviceId]?.chart) return;
   const canvas = document.getElementById(`chart-${deviceId}`);
   if (!canvas) return;
 
@@ -475,6 +480,15 @@ function setBadge(el, text, cls) {
 }
 
 /* =====================================================
+   Footer Source Indicator
+===================================================== */
+function updateFooterSource(deviceId) {
+  const footerSourceEl = document.getElementById('footer-source-label');
+  if (!footerSourceEl) return;
+  footerSourceEl.textContent = 'Firebase RTDB';
+}
+
+/* =====================================================
    Online / Offline state
 ===================================================== */
 function markOnline(deviceId) {
@@ -506,12 +520,164 @@ function markOffline(deviceId) {
 }
 
 /* =====================================================
+   DEMO SIMULATION ENGINE (Cows 3, 4, 5 & 6)
+===================================================== */
+const SIMULATION_PROFILES = {
+  cow_3: {
+    name: 'Cow 3',
+    statusDesc: 'Healthy / Normal Baseline',
+    basePulse: 66,
+    pulseAmp: 3,
+    pulseClamp: [62, 70],
+    baseInternalTemp: 38.65,
+    tempAmp: 0.15,
+    tempClamp: [38.45, 38.85], // Cattle normal is 38.3 – 39.4 °C
+    baseExternalTemp: 26.5,
+    extAmp: 0.3,
+    baseDistance: 45,
+    distAmp: 4,
+  },
+  cow_4: {
+    name: 'Cow 4',
+    statusDesc: 'Fever / Elevated Temp (Alert Demo)',
+    basePulse: 92,
+    pulseAmp: 4,
+    pulseClamp: [88, 96],
+    baseInternalTemp: 39.95,
+    tempAmp: 0.20,
+    tempClamp: [39.75, 40.20], // Alert is > 39.4 °C
+    baseExternalTemp: 29.8,
+    extAmp: 0.4,
+    baseDistance: 36,
+    distAmp: 3,
+  },
+  cow_5: {
+    name: 'Cow 5',
+    statusDesc: 'Hypothermia / Low Temp (Warning Demo)',
+    basePulse: 54,
+    pulseAmp: 3,
+    pulseClamp: [50, 58],
+    baseInternalTemp: 37.95,
+    tempAmp: 0.16,
+    tempClamp: [37.75, 38.15], // Warning is < 38.3 °C
+    baseExternalTemp: 21.8,
+    extAmp: 0.3,
+    baseDistance: 50,
+    distAmp: 4,
+  },
+  cow_6: {
+    name: 'Cow 6',
+    statusDesc: 'Active Pasture Grazing (Dynamic Demo)',
+    basePulse: 78,
+    pulseAmp: 6,
+    pulseClamp: [72, 85],
+    baseInternalTemp: 38.90,
+    tempAmp: 0.18,
+    tempClamp: [38.70, 39.10], // Cattle normal is 38.3 – 39.4 °C
+    baseExternalTemp: 27.4,
+    extAmp: 0.4,
+    baseDistance: 55,
+    distAmp: 25,
+  },
+};
+
+function generateSimulatedPoint(deviceId, stepIndex, timestamp) {
+  const profile = SIMULATION_PROFILES[deviceId];
+  if (!profile) return null;
+
+  const t = stepIndex * 0.35;
+  const wave1 = Math.sin(t);
+  const wave2 = Math.cos(t * 0.6);
+
+  // Pulse (BPM)
+  const pulseRaw = profile.basePulse + wave1 * profile.pulseAmp + (wave2 * 0.8) + (Math.random() - 0.5) * 1.0;
+  const pulseBPM = Math.min(profile.pulseClamp[1], Math.max(profile.pulseClamp[0], Math.round(pulseRaw)));
+
+  // Internal Temperature (°C)
+  const tempRaw = profile.baseInternalTemp + wave2 * profile.tempAmp + (wave1 * 0.04) + (Math.random() - 0.5) * 0.03;
+  const internalTemperature = Number(Math.min(profile.tempClamp[1], Math.max(profile.tempClamp[0], tempRaw)).toFixed(2));
+
+  // External Temperature (°C)
+  const extRaw = profile.baseExternalTemp + wave1 * profile.extAmp + (Math.random() - 0.5) * 0.05;
+  const externalTemperature = Number(extRaw.toFixed(2));
+
+  // Distance (cm)
+  const distRaw = profile.baseDistance + Math.sin(t * 0.5) * profile.distAmp + (Math.random() - 0.5) * 2;
+  const distanceCM = Math.max(5, Math.round(distRaw));
+
+  return {
+    pulseBPM,
+    internalTemperature,
+    externalTemperature,
+    distanceCM,
+    timestamp: timestamp || Date.now()
+  };
+}
+
+function seedSimulatedHistory(deviceId) {
+  const cd = deviceState[deviceId].chartData;
+  cd.labels = [];
+  cd.pulse = [];
+  cd.internalTemp = [];
+  cd.externalTemp = [];
+
+  const pointsCount = 20;
+  const intervalMs = 5000;
+  const now = Date.now();
+
+  for (let i = pointsCount - 1; i >= 0; i--) {
+    const ptTime = now - (i * intervalMs);
+    const reading = generateSimulatedPoint(deviceId, pointsCount - i, ptTime);
+    pushToHistory(deviceId, reading);
+  }
+
+  const latest = generateSimulatedPoint(deviceId, pointsCount, now);
+  deviceState[deviceId].lastSeen = now;
+  updateCards(deviceId, latest);
+  markOnline(deviceId);
+}
+
+let simulationStep = 25;
+let simulationIntervalId = null;
+
+function startSimulationTicker() {
+  if (simulationIntervalId) return;
+
+  // Initialize history and cards for each simulated device
+  DEVICES.filter(d => d.mode === 'simulated').forEach(dev => {
+    seedSimulatedHistory(dev.id);
+  });
+
+  simulationIntervalId = setInterval(() => {
+    const now = Date.now();
+    simulationStep++;
+
+    DEVICES.filter(d => d.mode === 'simulated').forEach(dev => {
+      const reading = generateSimulatedPoint(dev.id, simulationStep, now);
+      deviceState[dev.id].lastSeen = now;
+
+      pushToHistory(dev.id, reading);
+      updateCards(dev.id, reading);
+      markOnline(dev.id);
+
+      if (dev.id === activeDeviceId) {
+        timestampEl.textContent = new Date(now).toLocaleTimeString('en-GB', {
+          hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+      }
+    });
+  }, 5000);
+}
+
+/* =====================================================
    Offline Watchdog — check every 15 s
 ===================================================== */
 function startOfflineWatchdog() {
   setInterval(() => {
     const now = Date.now();
-    DEVICES.forEach(({ id }) => {
+    DEVICES.forEach(({ id, mode }) => {
+      // Only monitor real hardware devices for timeout
+      if (mode === 'simulated') return;
       const state = deviceState[id];
       if (state.lastSeen !== null && (now - state.lastSeen) > OFFLINE_THRESHOLD_MS) {
         markOffline(id);
@@ -523,26 +689,41 @@ function startOfflineWatchdog() {
 /* =====================================================
    Bootstrap — initialise all devices
 ===================================================== */
-function bootstrap() {
-  footerDevEl.textContent = activeDeviceId;
+let bootstrapped = false;
+let firebaseAttached = false;
 
-  DEVICES.forEach(({ id }) => {
-    initChart(id);
-    attachRtdbListener(id); // history is built live from RTDB stream
+function bootstrap() {
+  if (bootstrapped) return;
+  bootstrapped = true;
+
+  footerDevEl.textContent = activeDeviceId;
+  updateFooterSource(activeDeviceId);
+
+  DEVICES.forEach(device => {
+    initChart(device.id);
   });
 
   startOfflineWatchdog();
+  startSimulationTicker();
+}
+
+function attachFirebaseDevices() {
+  if (firebaseAttached) return;
+  firebaseAttached = true;
+
+  DEVICES.filter(d => d.mode === 'firebase').forEach(({ id }) => {
+    attachRtdbListener(id);
+  });
 }
 
 /* =====================================================
-   Auth Gate — sign in anonymously then start the app
-   (required if Firebase RTDB rules use auth != null)
+   Auth Gate — sign in anonymously then attach Firebase
 ===================================================== */
 auth.onAuthStateChanged(user => {
   if (user) {
     console.log('✅ Firebase Auth: signed in as', user.uid, '(anonymous:', user.isAnonymous, ')');
-    // Signed in — safe to attach Firebase listeners
     bootstrap();
+    attachFirebaseDevices();
   } else {
     console.log('Firebase Auth: no user session yet, waiting for signInAnonymously...');
   }
@@ -550,7 +731,11 @@ auth.onAuthStateChanged(user => {
 
 // Trigger anonymous sign-in
 auth.signInAnonymously()
-  .then(() => console.log('✅ signInAnonymously() succeeded.'))
+  .then(() => {
+    console.log('✅ signInAnonymously() succeeded.');
+    bootstrap();
+    attachFirebaseDevices();
+  })
   .catch(err => {
     console.error('❌ Firebase anonymous auth FAILED:', err.code, err.message);
     if (err.code === 'auth/operation-not-allowed') {
@@ -558,6 +743,9 @@ auth.signInAnonymously()
         'Go to Authentication → Sign-in method → Enable Anonymous.');
     }
     // Auth is disabled or blocked — fall back to unauthenticated listeners
-    // (works if RTDB rules allow public reads)
     bootstrap();
+    attachFirebaseDevices();
   });
+
+// Bootstrap UI, charts, and simulation immediately
+bootstrap();
