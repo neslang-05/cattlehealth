@@ -39,10 +39,146 @@ const fs = firebase.firestore();
 const auth = firebase.auth();
 
 /* =====================================================
+   Manipur Districts & Pasture Coordinates
+===================================================== */
+const MANIPUR_DISTRICTS = {
+  cow_1: {
+    district: 'Imphal West',
+    locationName: 'Lamphelpat Pasture Field',
+    centerLat: 24.8214,
+    centerLng: 93.9218,
+    radiusMeters: 220,
+  },
+  cow_2: {
+    district: 'Bishnupur',
+    locationName: 'Loktak Lake Meadows (Moirang)',
+    centerLat: 24.5042,
+    centerLng: 93.7745,
+    radiusMeters: 250,
+  },
+  cow_3: {
+    district: 'Thoubal',
+    locationName: 'Thoubal River Valley Grassland',
+    centerLat: 24.6415,
+    centerLng: 94.0125,
+    radiusMeters: 200,
+  },
+  cow_4: {
+    district: 'Churachandpur',
+    locationName: 'Tuibong Plateau Meadow',
+    centerLat: 24.3365,
+    centerLng: 93.6812,
+    radiusMeters: 230,
+  },
+  cow_5: {
+    district: 'Kangpokpi',
+    locationName: 'Sadar Hills Reserve Range',
+    centerLat: 25.1482,
+    centerLng: 93.9680,
+    radiusMeters: 210,
+  },
+  cow_6: {
+    district: 'Kakching',
+    locationName: 'Pallel Agrarian Field Zone',
+    centerLat: 24.4862,
+    centerLng: 93.9835,
+    radiusMeters: 240,
+  },
+};
+
+const EXTRA_MANIPUR_DISTRICTS = [
+  { district: 'Ukhrul', locationName: 'Shirui Foothills Range', centerLat: 25.1165, centerLng: 94.3620, radiusMeters: 220 },
+  { district: 'Senapati', locationName: 'Senapati Highland Pasture', centerLat: 25.2672, centerLng: 94.0175, radiusMeters: 220 },
+  { district: 'Tamenglong', locationName: 'Barak River Grazing Basin', centerLat: 24.9840, centerLng: 93.4910, radiusMeters: 230 },
+  { district: 'Imphal East', locationName: 'Porompat Dairy Range', centerLat: 24.8105, centerLng: 93.9660, radiusMeters: 200 },
+  { district: 'Chandel', locationName: 'Maha Valley Pasture', centerLat: 24.3290, centerLng: 94.0040, radiusMeters: 220 },
+  { district: 'Noney', locationName: 'Ijei River Meadows', centerLat: 24.8210, centerLng: 93.6010, radiusMeters: 220 },
+];
+
+function getDistrictForDevice(deviceId, index) {
+  if (MANIPUR_DISTRICTS[deviceId]) {
+    return MANIPUR_DISTRICTS[deviceId];
+  }
+  return EXTRA_MANIPUR_DISTRICTS[index % EXTRA_MANIPUR_DISTRICTS.length];
+}
+
+const DEVICE_COLORS = [
+  '#1D9E75', '#378ADD', '#9B5DE5', '#EF9F27', '#E24B4A', '#F15BB5', '#00BBF9', '#00F5D4'
+];
+
+/* =====================================================
    Per-device state registry
 ===================================================== */
-// deviceState[id] = { chart, chartData, currentView, lastSeen, rtdbRef }
+// deviceState[id] = { chart, chartData, currentView, lastSeen, rtdbRef, map, marker, trailPolyline, pastureCircle, districtInfo, geo }
 const deviceState = {};
+
+/* =====================================================
+   All Cattle Fleet Map State
+===================================================== */
+let allCattleMap = null;
+const allCattleMarkers = {};
+const allCattleTrails = {};
+const allCattleCircles = {};
+
+/* =====================================================
+   Fullscreen Map Helpers
+===================================================== */
+function toggleMapFullscreen(cardEl, mapInstance) {
+  if (!cardEl) return;
+  const isFs = cardEl.classList.contains('is-fullscreen');
+  const btn = cardEl.querySelector('.btn-fullscreen');
+  const fsText = btn?.querySelector('.fs-text');
+
+  if (isFs) {
+    cardEl.classList.remove('is-fullscreen');
+    document.body.classList.remove('has-fullscreen-map');
+    btn?.classList.remove('active');
+    if (fsText) fsText.textContent = 'Fullscreen';
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  } else {
+    cardEl.classList.add('is-fullscreen');
+    document.body.classList.add('has-fullscreen-map');
+    btn?.classList.add('active');
+    if (fsText) fsText.textContent = 'Exit Fullscreen';
+    if (cardEl.requestFullscreen && !document.fullscreenElement) {
+      cardEl.requestFullscreen().catch(() => {});
+    }
+  }
+
+  setTimeout(() => {
+    if (mapInstance) mapInstance.invalidateSize();
+  }, 120);
+}
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    document.querySelectorAll('.map-card.is-fullscreen').forEach(card => {
+      card.classList.remove('is-fullscreen');
+      const btn = card.querySelector('.btn-fullscreen');
+      btn?.classList.remove('active');
+      const fsText = btn?.querySelector('.fs-text');
+      if (fsText) fsText.textContent = 'Fullscreen';
+    });
+    document.body.classList.remove('has-fullscreen-map');
+    Object.values(deviceState).forEach(st => {
+      if (st.map) st.map.invalidateSize();
+    });
+    if (allCattleMap) allCattleMap.invalidateSize();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const fsCard = document.querySelector('.map-card.is-fullscreen');
+    if (fsCard) {
+      const devId = fsCard.dataset.deviceId;
+      const targetMap = devId === 'all' ? allCattleMap : deviceState[devId]?.map;
+      toggleMapFullscreen(fsCard, targetMap);
+    }
+  }
+});
 
 /* =====================================================
    DOM Bootstrap — build tabs + panels from DEVICES list
@@ -52,15 +188,118 @@ const panelsWrapper = document.getElementById('panels-container');
 const timestampEl = document.getElementById('timestamp-val');
 const footerDevEl = document.getElementById('footer-device-label');
 
-let activeDeviceId = DEVICES[0].id;
+let activeDeviceId = 'all';
+
+/* ── "All Cattle" Tab Button ── */
+const allTabBtn = document.createElement('button');
+allTabBtn.id = 'tab-btn-all';
+allTabBtn.className = 'tab-btn tab-btn-all active';
+allTabBtn.setAttribute('role', 'tab');
+allTabBtn.setAttribute('aria-selected', 'true');
+allTabBtn.setAttribute('aria-controls', 'panel-all');
+allTabBtn.dataset.deviceId = 'all';
+allTabBtn.innerHTML = `
+  <span class="tab-indicator" style="--tab-accent: #378ADD"></span>
+  <span class="tab-fleet-icon">🗺️</span>
+  All Cattle (Manipur)
+`;
+allTabBtn.addEventListener('click', () => switchTab('all'));
+tabNav.appendChild(allTabBtn);
+
+/* ── "All Cattle" Panel ── */
+const allPanel = document.createElement('section');
+allPanel.id = 'panel-all';
+allPanel.className = 'device-panel active';
+allPanel.setAttribute('role', 'tabpanel');
+allPanel.setAttribute('aria-labelledby', 'tab-btn-all');
+allPanel.innerHTML = `
+  <!-- Fleet Summary Cards -->
+  <div class="fleet-summary-grid">
+    <div class="card summary-card">
+      <span class="card-label">Total Cattle</span>
+      <p><span id="fleet-total-count">${DEVICES.length}</span><span class="unit">monitored</span></p>
+      <div class="status-badge status-ok">All tracked</div>
+    </div>
+    <div class="card summary-card">
+      <span class="card-label">Avg Pulse Rate</span>
+      <p><span id="fleet-avg-pulse">--</span><span class="unit">BPM</span></p>
+      <div id="fleet-avg-pulse-badge" class="status-badge status-ok">Active herd</div>
+    </div>
+    <div class="card summary-card">
+      <span class="card-label">Avg Internal Temp</span>
+      <p><span id="fleet-avg-temp">--</span><span class="unit">°C</span></p>
+      <div id="fleet-avg-temp-badge" class="status-badge status-ok">Normal range</div>
+    </div>
+    <div class="card summary-card">
+      <span class="card-label">Districts of Manipur</span>
+      <p><span id="fleet-districts-count">${Object.keys(MANIPUR_DISTRICTS).length}</span><span class="unit">districts</span></p>
+      <div class="status-badge status-neutral">State coverage</div>
+    </div>
+  </div>
+
+  <!-- State-Wide OpenStreetMap Card -->
+  <div class="card map-card all-map-card" id="all-map-card" style="margin-top: 1.5rem; min-height: 540px; --device-accent: #378ADD;" data-device-id="all">
+    <div class="map-header">
+      <div class="map-header-left">
+        <span class="card-label">State-Wide Multi-Cattle Tracking (Manipur)</span>
+        <div class="all-map-chips-bar" id="all-map-cows-filter">
+          <button type="button" class="chip-cow-focus active" data-cow="all">
+            <span class="chip-cow-dot" style="background: #378ADD;"></span>
+            All Manipur
+          </button>
+          ${DEVICES.map((d, i) => `
+            <button type="button" class="chip-cow-focus" data-cow="${d.id}">
+              <span class="chip-cow-dot" style="background: ${DEVICE_COLORS[i % DEVICE_COLORS.length]};"></span>
+              ${d.label} (${getDistrictForDevice(d.id, i).district})
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      <div class="map-header-right" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <span class="coords-badge">📍 Manipur State View</span>
+        <button type="button" class="btn-fullscreen" id="all-map-btn-fullscreen" title="Expand map to full screen">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+          <span class="fs-text">Fullscreen</span>
+        </button>
+      </div>
+    </div>
+    <div class="map-container-wrap" style="min-height: 420px;">
+      <div id="map-all_cattle" class="cattle-map"></div>
+    </div>
+    <div class="map-footer">
+      <div class="map-legend">
+        <span class="pulsing-map-dot"></span>
+        <span>Simulating live wandering across Manipur districts</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn-recenter" id="all-map-btn-fit" title="Fit all cattle in view">
+          Fit All Cattle
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fleet Roster Section -->
+  <div class="fleet-cards-section" style="margin-top: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+      <h3 style="font-size: 1.15rem; font-weight: 600;">Cattle Fleet Roster</h3>
+      <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">Click any card to inspect detailed sensor history</span>
+    </div>
+    <div class="fleet-cards-grid" id="fleet-roster-grid"></div>
+  </div>
+`;
+panelsWrapper.appendChild(allPanel);
 
 DEVICES.forEach((device, index) => {
+  const districtInfo = getDistrictForDevice(device.id, index);
+  const deviceColor = DEVICE_COLORS[index % DEVICE_COLORS.length];
+
   /* ── Tab button ── */
   const btn = document.createElement('button');
   btn.id = `tab-btn-${device.id}`;
-  btn.className = `tab-btn${index === 0 ? ' active' : ''}`;
+  btn.className = 'tab-btn';
   btn.setAttribute('role', 'tab');
-  btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+  btn.setAttribute('aria-selected', 'false');
   btn.setAttribute('aria-controls', `panel-${device.id}`);
   btn.dataset.deviceId = device.id;
   btn.dataset.colorIndex = index;
@@ -75,7 +314,7 @@ DEVICES.forEach((device, index) => {
   /* ── Device panel ── */
   const panel = document.createElement('section');
   panel.id = `panel-${device.id}`;
-  panel.className = `device-panel${index === 0 ? ' active' : ''}`;
+  panel.className = 'device-panel';
   panel.setAttribute('role', 'tabpanel');
   panel.setAttribute('aria-labelledby', `tab-btn-${device.id}`);
   panel.innerHTML = `
@@ -87,27 +326,63 @@ DEVICES.forEach((device, index) => {
       </div>
     </div>
 
-    <!-- Sensor cards grid -->
-    <div class="grid">
-      <div class="card pulse-card">
-        <span class="card-label">Pulse Rate</span>
-        <p><span id="${device.id}-pulse">--</span><span class="unit">BPM</span></p>
-        <div id="${device.id}-pulse-badge" class="status-badge status-neutral">Sensor active</div>
+    <!-- Sensor measurements (left) + OpenStreetMap (right) -->
+    <div class="metrics-map-row">
+      <div class="sensors-column">
+        <div class="card pulse-card">
+          <span class="card-label">Pulse Rate</span>
+          <p><span id="${device.id}-pulse">--</span><span class="unit">BPM</span></p>
+          <div id="${device.id}-pulse-badge" class="status-badge status-neutral">Sensor active</div>
+        </div>
+
+        <div class="card internal-card">
+          <span class="card-label">Internal Temp</span>
+          <p><span id="${device.id}-internalTemp">--</span><span class="unit">°C</span></p>
+          <div id="${device.id}-internal-badge" class="status-badge status-neutral">Sensor active</div>
+        </div>
+
+        <div class="card external-card">
+          <span class="card-label">External Temp</span>
+          <p><span id="${device.id}-externalTemp">--</span><span class="unit">°C</span></p>
+          <div id="${device.id}-external-badge" class="status-badge status-neutral">Sensor active</div>
+        </div>
       </div>
 
-      <div class="card internal-card">
-        <span class="card-label">Internal Temp</span>
-        <p><span id="${device.id}-internalTemp">--</span><span class="unit">°C</span></p>
-        <div id="${device.id}-internal-badge" class="status-badge status-neutral">Sensor active</div>
+      <!-- Live OpenStreetMap (Manipur District) -->
+      <div class="map-column">
+        <div class="card map-card" id="map-card-${device.id}" data-device-id="${device.id}" style="--device-accent: ${deviceColor};">
+          <div class="map-header">
+            <div class="map-header-left">
+              <span class="card-label">Live Pasture Location (OSM)</span>
+              <span class="district-badge" id="${device.id}-district-badge">📍 ${districtInfo.district}, Manipur</span>
+            </div>
+            <div class="map-header-right" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <span class="coords-badge" id="${device.id}-coords">--.----° N, --.----° E</span>
+              <button type="button" class="btn-toggle-all" id="${device.id}-btn-toggle-all" title="View all cattle in Manipur on this map">
+                <span>View All (${DEVICES.length})</span>
+              </button>
+              <button type="button" class="btn-fullscreen" id="${device.id}-btn-fullscreen" title="Full screen map">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                <span class="fs-text">Fullscreen</span>
+              </button>
+            </div>
+          </div>
+          <div class="map-container-wrap">
+            <div id="map-${device.id}" class="cattle-map"></div>
+          </div>
+          <div class="map-footer">
+            <div class="map-legend">
+              <span class="pulsing-map-dot"></span>
+              <span id="${device.id}-movement-status">Grazing in pasture</span>
+              <span class="speed-pill mono" id="${device.id}-speed">1.2 km/h</span>
+            </div>
+            <button type="button" class="btn-recenter" id="${device.id}-btn-recenter" title="Center map on cattle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg>
+              Recenter
+            </button>
+          </div>
+        </div>
       </div>
-
-      <div class="card external-card">
-        <span class="card-label">External Temp</span>
-        <p><span id="${device.id}-externalTemp">--</span><span class="unit">°C</span></p>
-        <div id="${device.id}-external-badge" class="status-badge status-neutral">Sensor active</div>
-      </div>
-
-     
     </div>
 
     <!-- History chart -->
@@ -129,12 +404,32 @@ DEVICES.forEach((device, index) => {
   panelsWrapper.appendChild(panel);
 
   /* ── Initialise per-device state ── */
+  const startLat = districtInfo.centerLat + (Math.random() - 0.5) * 0.0006;
+  const startLng = districtInfo.centerLng + (Math.random() - 0.5) * 0.0006;
+
   deviceState[device.id] = {
     chart: null,
     chartData: { labels: [], pulse: [], internalTemp: [], externalTemp: [] },
     currentView: 'pulse',
     lastSeen: null,
     rtdbRef: null,
+    // Map & Geolocation state
+    map: null,
+    marker: null,
+    trailPolyline: null,
+    pastureCircle: null,
+    districtInfo: districtInfo,
+    extraMarkers: [],
+    showingAllOnSingle: false,
+    latestReading: null,
+    geo: {
+      lat: startLat,
+      lng: startLng,
+      targetLat: districtInfo.centerLat + (Math.random() - 0.5) * 0.0012,
+      targetLng: districtInfo.centerLng + (Math.random() - 0.5) * 0.0012,
+      speedKmh: 1.2,
+      history: [[startLat, startLng]]
+    }
   };
 });
 
@@ -147,29 +442,65 @@ function switchTab(id) {
 
   /* Toggle panels */
   document.querySelectorAll('.device-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(`panel-${id}`).classList.add('active');
+  const targetPanel = document.getElementById(id === 'all' ? 'panel-all' : `panel-${id}`);
+  if (targetPanel) targetPanel.classList.add('active');
 
   /* Toggle tab buttons */
   document.querySelectorAll('.tab-btn').forEach(b => {
     b.classList.remove('active');
     b.setAttribute('aria-selected', 'false');
   });
-  const activeBtn = document.getElementById(`tab-btn-${id}`);
-  activeBtn.classList.add('active');
-  activeBtn.setAttribute('aria-selected', 'true');
+  const activeBtn = document.getElementById(id === 'all' ? 'tab-btn-all' : `tab-btn-${id}`);
+  if (activeBtn) {
+    activeBtn.classList.add('active');
+    activeBtn.setAttribute('aria-selected', 'true');
+  }
 
-  /* Update footer */
+  /* All cattle fleet overview */
+  if (id === 'all') {
+    footerDevEl.textContent = `All Cattle Fleet (${DEVICES.length})`;
+    const footerSourceEl = document.getElementById('footer-source-label');
+    if (footerSourceEl) footerSourceEl.textContent = 'Fleet Overview';
+    timestampEl.textContent = new Date().toLocaleTimeString('en-GB', {
+      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+
+    if (allCattleMap) {
+      setTimeout(() => {
+        allCattleMap.invalidateSize();
+        fitAllCattleBounds();
+      }, 100);
+    } else {
+      setTimeout(() => initAllCattleMap(), 50);
+    }
+    updateFleetSummaryAndRoster();
+    return;
+  }
+
+  /* Specific cattle view */
   footerDevEl.textContent = id;
   updateFooterSource(id);
 
   /* Resize chart (needed after display:none → block) */
   const state = deviceState[id];
-  if (state.chart) {
+  if (state?.chart) {
     setTimeout(() => state.chart.resize(), 50);
   }
 
+  /* Invalidate Leaflet map size and re-center on cattle */
+  if (state?.map) {
+    setTimeout(() => {
+      state.map.invalidateSize();
+      if (state.geo?.lat && state.geo?.lng) {
+        state.map.panTo([state.geo.lat, state.geo.lng], { animate: false });
+      }
+    }, 100);
+  } else {
+    setTimeout(() => initMap(id), 50);
+  }
+
   /* Refresh timestamp */
-  if (state.lastSeen) {
+  if (state?.lastSeen) {
     timestampEl.textContent = new Date(state.lastSeen).toLocaleTimeString('en-GB', {
       hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
@@ -317,6 +648,594 @@ function renderChart(deviceId) {
   }
 
   chart.update('none');
+}
+
+/* =====================================================
+   OpenStreetMap (OSM) — Leaflet Integration
+===================================================== */
+function initMap(deviceId) {
+  const state = deviceState[deviceId];
+  if (!state || state.map) return;
+
+  const container = document.getElementById(`map-${deviceId}`);
+  if (!container) return;
+
+  if (typeof L === 'undefined') {
+    console.warn(`Leaflet not ready for ${deviceId}, retrying...`);
+    setTimeout(() => initMap(deviceId), 200);
+    return;
+  }
+
+  const deviceIdx = DEVICES.findIndex(d => d.id === deviceId);
+  const deviceColor = DEVICE_COLORS[deviceIdx >= 0 ? deviceIdx % DEVICE_COLORS.length : 0];
+  const info = state.districtInfo;
+
+  try {
+    // 1. Create Leaflet map instance centered on Manipur district pasture
+    const map = L.map(container, {
+      center: [state.geo.lat, state.geo.lng],
+      zoom: 15,
+      minZoom: 10,
+      maxZoom: 18,
+      zoomControl: true,
+      attributionControl: true
+    });
+
+    // 2. OpenStreetMap standard tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // 3. Pasture perimeter circle (grazing zone in Manipur district)
+    const pastureCircle = L.circle([info.centerLat, info.centerLng], {
+      radius: info.radiusMeters,
+      color: deviceColor,
+      weight: 1.5,
+      dashArray: '5, 6',
+      fillColor: deviceColor,
+      fillOpacity: 0.08
+    }).addTo(map);
+
+    pastureCircle.bindTooltip(`${info.locationName} (${info.district} District)`, {
+      direction: 'top',
+      opacity: 0.9
+    });
+
+    // 4. Movement breadcrumb trail polyline
+    const trailPolyline = L.polyline(state.geo.history, {
+      color: deviceColor,
+      weight: 3,
+      opacity: 0.8,
+      dashArray: '4, 6',
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(map);
+
+    // 5. Custom Cattle Marker with animated halo
+    const devLabel = DEVICES.find(d => d.id === deviceId)?.label || deviceId;
+    const markerHtml = `
+      <div class="cow-marker-container">
+        <div class="cow-marker-bubble" style="--marker-color: ${deviceColor};">
+          <span class="cow-marker-halo" style="--marker-color: ${deviceColor};"></span>
+          <span class="cow-marker-emoji">🐄</span>
+        </div>
+        <div class="cow-marker-tag">${devLabel}</div>
+      </div>
+    `;
+
+    const customIcon = L.divIcon({
+      className: 'cow-custom-icon',
+      html: markerHtml,
+      iconSize: [42, 58],
+      iconAnchor: [21, 29],
+      popupAnchor: [0, -28]
+    });
+
+    const marker = L.marker([state.geo.lat, state.geo.lng], {
+      icon: customIcon
+    }).addTo(map);
+
+    const getPopupContent = () => `
+      <div class="cattle-popup-header">
+        <span>🐄</span>
+        <strong>${devLabel}</strong>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${deviceColor};"></span>
+      </div>
+      <div class="cattle-popup-loc">${info.district} District · ${info.locationName}</div>
+      <div class="cattle-popup-meta">
+        <span>Lat: ${state.geo.lat.toFixed(5)}°</span>
+        <span>Lng: ${state.geo.lng.toFixed(5)}°</span>
+      </div>
+      <div class="cattle-popup-stats">
+        Moving: <strong>${state.geo.speedKmh.toFixed(1)} km/h</strong> (Simulated)
+      </div>
+    `;
+
+    marker.bindPopup(getPopupContent);
+
+    state.map = map;
+    state.marker = marker;
+    state.trailPolyline = trailPolyline;
+    state.pastureCircle = pastureCircle;
+
+    // Recenter button
+    const recenterBtn = document.getElementById(`${deviceId}-btn-recenter`);
+    if (recenterBtn) {
+      recenterBtn.addEventListener('click', () => {
+        map.setView([state.geo.lat, state.geo.lng], 15, { animate: true });
+      });
+    }
+
+    // Fullscreen button
+    const fsBtn = document.getElementById(`${deviceId}-btn-fullscreen`);
+    const mapCard = document.getElementById(`map-card-${deviceId}`);
+    if (fsBtn && mapCard) {
+      fsBtn.addEventListener('click', () => {
+        toggleMapFullscreen(mapCard, state.map);
+      });
+    }
+
+    // View All cattle toggle on single map
+    const toggleAllBtn = document.getElementById(`${deviceId}-btn-toggle-all`);
+    if (toggleAllBtn) {
+      toggleAllBtn.addEventListener('click', () => {
+        state.showingAllOnSingle = !state.showingAllOnSingle;
+        toggleAllBtn.classList.toggle('active', state.showingAllOnSingle);
+        const span = toggleAllBtn.querySelector('span');
+        if (span) span.textContent = state.showingAllOnSingle ? 'Focus Cow' : `View All (${DEVICES.length})`;
+
+        if (state.showingAllOnSingle) {
+          state.extraMarkers = [];
+          DEVICES.forEach((otherDev, oIdx) => {
+            if (otherDev.id === deviceId) return;
+            const otherColor = DEVICE_COLORS[oIdx % DEVICE_COLORS.length];
+            const otherGeo = deviceState[otherDev.id]?.geo;
+            if (!otherGeo) return;
+
+            const m = L.marker([otherGeo.lat, otherGeo.lng], {
+              icon: L.divIcon({
+                className: 'cow-custom-icon',
+                html: `
+                  <div class="cow-marker-container">
+                    <div class="cow-marker-bubble" style="--marker-color: ${otherColor};">
+                      <span class="cow-marker-halo" style="--marker-color: ${otherColor};"></span>
+                      <span class="cow-marker-emoji">🐄</span>
+                    </div>
+                    <div class="cow-marker-tag">${otherDev.label}</div>
+                  </div>
+                `,
+                iconSize: [42, 58],
+                iconAnchor: [21, 29],
+                popupAnchor: [0, -28]
+              })
+            }).addTo(map);
+
+            m.bindPopup(`
+              <div class="cattle-popup-header">
+                <span>🐄</span>
+                <strong>${otherDev.label}</strong>
+              </div>
+              <div class="cattle-popup-loc">${getDistrictForDevice(otherDev.id, oIdx).district} District</div>
+              <div class="cattle-popup-stats" style="margin-top: 6px;">
+                <button type="button" class="btn-open-cow" onclick="switchTab('${otherDev.id}')">Switch to ${otherDev.label} →</button>
+              </div>
+            `);
+
+            state.extraMarkers.push({ id: otherDev.id, marker: m });
+          });
+
+          // Fit bounds to show all cows across Manipur
+          const points = DEVICES.map(d => [deviceState[d.id]?.geo.lat, deviceState[d.id]?.geo.lng]).filter(p => p[0] && p[1]);
+          if (points.length > 0) {
+            map.fitBounds(L.latLngBounds(points), { padding: [50, 50], animate: true });
+          }
+        } else {
+          // Remove extra markers and zoom back to this cow
+          state.extraMarkers.forEach(item => map.removeLayer(item.marker));
+          state.extraMarkers = [];
+          map.setView([state.geo.lat, state.geo.lng], 15, { animate: true });
+        }
+      });
+    }
+
+    updateMapBadges(deviceId);
+
+    // If active tab, ensure correct sizing
+    if (deviceId === activeDeviceId) {
+      setTimeout(() => map.invalidateSize(), 100);
+    }
+  } catch (err) {
+    console.error(`Failed to initialize map for ${deviceId}:`, err);
+  }
+}
+
+/* =====================================================
+   All Cattle Fleet Map (State-Wide Manipur)
+===================================================== */
+function initAllCattleMap() {
+  if (allCattleMap) return;
+  const container = document.getElementById('map-all_cattle');
+  if (!container || typeof L === 'undefined') return;
+
+  try {
+    allCattleMap = L.map(container, {
+      center: [24.78, 93.94],
+      zoom: 10,
+      minZoom: 9,
+      maxZoom: 18,
+      zoomControl: true,
+      attributionControl: true
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+    }).addTo(allCattleMap);
+
+    // Add pasture circles, trails, and markers for each cow
+    DEVICES.forEach((dev, idx) => {
+      const state = deviceState[dev.id];
+      const color = DEVICE_COLORS[idx % DEVICE_COLORS.length];
+      const info = state ? state.districtInfo : getDistrictForDevice(dev.id, idx);
+      const geo = state ? state.geo : { lat: info.centerLat, lng: info.centerLng };
+
+      // Pasture circle
+      const circle = L.circle([info.centerLat, info.centerLng], {
+        radius: info.radiusMeters,
+        color: color,
+        weight: 1.5,
+        dashArray: '5, 6',
+        fillColor: color,
+        fillOpacity: 0.08
+      }).addTo(allCattleMap);
+
+      circle.bindTooltip(`${dev.label} Pasture — ${info.district} District`, {
+        direction: 'top',
+        opacity: 0.9
+      });
+      allCattleCircles[dev.id] = circle;
+
+      // Polyline trail
+      const trail = L.polyline(geo.history || [[geo.lat, geo.lng]], {
+        color: color,
+        weight: 3,
+        opacity: 0.8,
+        dashArray: '4, 6',
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(allCattleMap);
+      allCattleTrails[dev.id] = trail;
+
+      // Custom marker
+      const markerHtml = `
+        <div class="cow-marker-container">
+          <div class="cow-marker-bubble" style="--marker-color: ${color};">
+            <span class="cow-marker-halo" style="--marker-color: ${color};"></span>
+            <span class="cow-marker-emoji">🐄</span>
+          </div>
+          <div class="cow-marker-tag">${dev.label}</div>
+        </div>
+      `;
+
+      const marker = L.marker([geo.lat, geo.lng], {
+        icon: L.divIcon({
+          className: 'cow-custom-icon',
+          html: markerHtml,
+          iconSize: [42, 58],
+          iconAnchor: [21, 29],
+          popupAnchor: [0, -28]
+        })
+      }).addTo(allCattleMap);
+
+      const updatePopup = () => {
+        const currentGeo = deviceState[dev.id]?.geo || geo;
+        const curPulse = document.getElementById(`${dev.id}-pulse`)?.textContent || '--';
+        const curTemp = document.getElementById(`${dev.id}-internalTemp`)?.textContent || '--';
+        return `
+          <div class="cattle-popup-header">
+            <span>🐄</span>
+            <strong>${dev.label}</strong>
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};"></span>
+          </div>
+          <div class="cattle-popup-loc">${info.district} District · ${info.locationName}</div>
+          <div class="cattle-popup-meta">
+            <span>Lat: ${currentGeo.lat.toFixed(5)}°</span>
+            <span>Lng: ${currentGeo.lng.toFixed(5)}°</span>
+          </div>
+          <div class="cattle-popup-stats" style="margin-bottom: 8px;">
+            Pulse: <strong>${curPulse} BPM</strong> · Temp: <strong>${curTemp} °C</strong> · Speed: <strong>${currentGeo.speedKmh ? currentGeo.speedKmh.toFixed(1) : '1.2'} km/h</strong>
+          </div>
+          <button type="button" class="btn-open-cow" onclick="switchTab('${dev.id}')" style="width: 100%; text-align: center;">
+            Open ${dev.label} Sensors Dashboard →
+          </button>
+        `;
+      };
+
+      marker.bindPopup(updatePopup);
+      allCattleMarkers[dev.id] = marker;
+    });
+
+    fitAllCattleBounds();
+
+    // Fit button
+    const fitBtn = document.getElementById('all-map-btn-fit');
+    if (fitBtn) {
+      fitBtn.addEventListener('click', fitAllCattleBounds);
+    }
+
+    // Fullscreen button
+    const fsBtn = document.getElementById('all-map-btn-fullscreen');
+    const allMapCard = document.getElementById('all-map-card');
+    if (fsBtn && allMapCard) {
+      fsBtn.addEventListener('click', () => {
+        toggleMapFullscreen(allMapCard, allCattleMap);
+      });
+    }
+
+    // Filter chips
+    const chipContainer = document.getElementById('all-map-cows-filter');
+    if (chipContainer) {
+      chipContainer.querySelectorAll('.chip-cow-focus').forEach(chip => {
+        chip.addEventListener('click', () => {
+          chipContainer.querySelectorAll('.chip-cow-focus').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          const cowId = chip.dataset.cow;
+          if (cowId === 'all') {
+            fitAllCattleBounds();
+          } else {
+            const st = deviceState[cowId];
+            if (st?.geo) {
+              allCattleMap.setView([st.geo.lat, st.geo.lng], 15, { animate: true });
+              if (allCattleMarkers[cowId]) {
+                setTimeout(() => allCattleMarkers[cowId].openPopup(), 300);
+              }
+            }
+          }
+        });
+      });
+    }
+
+    // Render roster cards
+    renderFleetRosterGrid();
+    updateFleetSummaryAndRoster();
+
+  } catch (err) {
+    console.error('Failed to initialize All Cattle Map:', err);
+  }
+}
+
+function fitAllCattleBounds() {
+  if (!allCattleMap) return;
+  const points = DEVICES.map(d => {
+    const geo = deviceState[d.id]?.geo;
+    return geo ? [geo.lat, geo.lng] : null;
+  }).filter(Boolean);
+
+  if (points.length > 0) {
+    allCattleMap.fitBounds(L.latLngBounds(points), { padding: [50, 50], animate: true });
+  }
+}
+
+function renderFleetRosterGrid() {
+  const grid = document.getElementById('fleet-roster-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  DEVICES.forEach((dev, idx) => {
+    const color = DEVICE_COLORS[idx % DEVICE_COLORS.length];
+    const info = getDistrictForDevice(dev.id, idx);
+    const card = document.createElement('div');
+    card.className = 'fleet-roster-card';
+    card.id = `roster-card-${dev.id}`;
+    card.style.setProperty('--card-accent', color);
+
+    card.innerHTML = `
+      <div class="fleet-roster-top">
+        <div>
+          <div class="fleet-roster-title">
+            <span style="color: ${color};">●</span>
+            ${dev.label}
+          </div>
+          <div class="fleet-roster-district">📍 ${info.district} District · ${info.locationName}</div>
+        </div>
+        <div id="roster-${dev.id}-badge" class="status-badge status-ok">Online</div>
+      </div>
+      <div class="fleet-roster-metrics">
+        <div>
+          <span class="roster-metric-label">Pulse</span>
+          <span class="roster-metric-val" id="roster-${dev.id}-pulse">--</span> <span class="unit">BPM</span>
+        </div>
+        <div>
+          <span class="roster-metric-label">Internal Temp</span>
+          <span class="roster-metric-val" id="roster-${dev.id}-temp">--</span> <span class="unit">°C</span>
+        </div>
+      </div>
+      <div class="fleet-roster-bottom">
+        <span class="mono" id="roster-${dev.id}-coords" style="font-size: 11px; color: var(--text-muted);">--.----° N, --.----° E</span>
+        <button type="button" class="btn-open-cow" onclick="switchTab('${dev.id}')">View Details →</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function updateFleetSummaryAndRoster() {
+  let pulseSum = 0;
+  let pulseCount = 0;
+  let tempSum = 0;
+  let tempCount = 0;
+
+  DEVICES.forEach(dev => {
+    const st = deviceState[dev.id];
+    if (!st) return;
+
+    // Pulse
+    const pulseEl = document.getElementById(`${dev.id}-pulse`);
+    const pVal = pulseEl ? parseFloat(pulseEl.textContent) : NaN;
+    if (!isNaN(pVal) && pVal > 0) {
+      pulseSum += pVal;
+      pulseCount++;
+      const rPulse = document.getElementById(`roster-${dev.id}-pulse`);
+      if (rPulse) rPulse.textContent = Math.round(pVal);
+    }
+
+    // Temp
+    const tempEl = document.getElementById(`${dev.id}-internalTemp`);
+    const tVal = tempEl ? parseFloat(tempEl.textContent) : NaN;
+    if (!isNaN(tVal) && tVal > 0) {
+      tempSum += tVal;
+      tempCount++;
+      const rTemp = document.getElementById(`roster-${dev.id}-temp`);
+      if (rTemp) rTemp.textContent = tVal.toFixed(2);
+    }
+
+    // Coords
+    const rCoords = document.getElementById(`roster-${dev.id}-coords`);
+    if (rCoords && st.geo) {
+      rCoords.textContent = `${st.geo.lat.toFixed(4)}° N, ${st.geo.lng.toFixed(4)}° E`;
+    }
+  });
+
+  const avgPulseEl = document.getElementById('fleet-avg-pulse');
+  if (avgPulseEl) {
+    avgPulseEl.textContent = pulseCount > 0 ? Math.round(pulseSum / pulseCount) : '--';
+  }
+
+  const avgTempEl = document.getElementById('fleet-avg-temp');
+  if (avgTempEl) {
+    avgTempEl.textContent = tempCount > 0 ? (tempSum / tempCount).toFixed(2) : '--';
+  }
+}
+
+function updateMapBadges(deviceId) {
+  const state = deviceState[deviceId];
+  if (!state || !state.geo) return;
+
+  const coordsEl = document.getElementById(`${deviceId}-coords`);
+  if (coordsEl) {
+    coordsEl.textContent = `${state.geo.lat.toFixed(4)}° N, ${state.geo.lng.toFixed(4)}° E`;
+  }
+
+  const districtBadge = document.getElementById(`${deviceId}-district-badge`);
+  if (districtBadge && state.districtInfo) {
+    districtBadge.textContent = `📍 ${state.districtInfo.district}, Manipur`;
+  }
+
+  const speedEl = document.getElementById(`${deviceId}-speed`);
+  if (speedEl) {
+    speedEl.textContent = `${state.geo.speedKmh.toFixed(1)} km/h`;
+  }
+
+  const statusText = document.getElementById(`${deviceId}-movement-status`);
+  if (statusText && state.districtInfo) {
+    statusText.textContent = `Grazing · ${state.districtInfo.locationName}`;
+  }
+}
+
+/* =====================================================
+   Cattle Movement Simulation (Districts of Manipur)
+===================================================== */
+function simulateCattleMovementStep(deviceId) {
+  const state = deviceState[deviceId];
+  if (!state || !state.geo) return;
+
+  const info = state.districtInfo;
+  const geo = state.geo;
+
+  // Vector towards target
+  const dLat = geo.targetLat - geo.lat;
+  const dLng = geo.targetLng - geo.lng;
+  const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+
+  // If close to current pasture target or randomly, select a new waypoint in pasture
+  if (dist < 0.00012 || Math.random() < 0.08) {
+    // 1 deg lat ≈ 111,000 m; 1 deg lng ≈ 100,750 m at 24.8°N
+    const maxLatDelta = (info.radiusMeters * 0.82) / 111000;
+    const maxLngDelta = (info.radiusMeters * 0.82) / 100750;
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()); // Uniform circle distribution
+
+    geo.targetLat = info.centerLat + Math.sin(angle) * maxLatDelta * r;
+    geo.targetLng = info.centerLng + Math.cos(angle) * maxLngDelta * r;
+    geo.speedKmh = Number((0.6 + Math.random() * 1.6).toFixed(1));
+  }
+
+  // Smooth step towards target with gentle natural forage wander
+  const stepRate = 0.07 + Math.random() * 0.04;
+  const jitterLat = (Math.random() - 0.5) * 0.00003;
+  const jitterLng = (Math.random() - 0.5) * 0.00003;
+
+  geo.lat += (geo.targetLat - geo.lat) * stepRate + jitterLat;
+  geo.lng += (geo.targetLng - geo.lng) * stepRate + jitterLng;
+
+  // Append to history trail (keep last 20 coordinates)
+  geo.history.push([geo.lat, geo.lng]);
+  if (geo.history.length > 20) {
+    geo.history.shift();
+  }
+
+  // Update map marker and polyline trail
+  if (state.marker) {
+    state.marker.setLatLng([geo.lat, geo.lng]);
+    if (state.marker.isPopupOpen && state.marker.isPopupOpen()) {
+      state.marker.setPopupContent(`
+        <div class="cattle-popup-header">
+          <span>🐄</span>
+          <strong>${DEVICES.find(d => d.id === deviceId)?.label || deviceId}</strong>
+        </div>
+        <div class="cattle-popup-loc">${info.district} District · ${info.locationName}</div>
+        <div class="cattle-popup-meta">
+          <span>Lat: ${geo.lat.toFixed(5)}°</span>
+          <span>Lng: ${geo.lng.toFixed(5)}°</span>
+        </div>
+        <div class="cattle-popup-stats">
+          Moving: <strong>${geo.speedKmh.toFixed(1)} km/h</strong> (Simulated)
+        </div>
+      `);
+    }
+  }
+
+  if (state.trailPolyline) {
+    state.trailPolyline.setLatLngs(geo.history);
+  }
+
+  // Also update position on All Cattle Fleet Map
+  if (allCattleMarkers[deviceId]) {
+    allCattleMarkers[deviceId].setLatLng([geo.lat, geo.lng]);
+  }
+  if (allCattleTrails[deviceId]) {
+    allCattleTrails[deviceId].setLatLngs(geo.history);
+  }
+
+  // Update extra markers on any individual map that has View All toggled
+  Object.values(deviceState).forEach(st => {
+    if (st.showingAllOnSingle && st.extraMarkers) {
+      const em = st.extraMarkers.find(m => m.id === deviceId);
+      if (em) em.marker.setLatLng([geo.lat, geo.lng]);
+    }
+  });
+
+  updateMapBadges(deviceId);
+  updateFleetSummaryAndRoster();
+}
+
+let mapMovementIntervalId = null;
+
+function startMapMovementTicker() {
+  if (mapMovementIntervalId) return;
+
+  // Run initial step for all devices
+  DEVICES.forEach(dev => {
+    simulateCattleMovementStep(dev.id);
+  });
+
+  // Tick every 2.5 seconds to simulate moving cattle across Manipur
+  mapMovementIntervalId = setInterval(() => {
+    DEVICES.forEach(dev => {
+      simulateCattleMovementStep(dev.id);
+    });
+  }, 2500);
 }
 
 /* =====================================================
@@ -471,6 +1390,22 @@ function updateCards(deviceId, data) {
 
   /* Distance badge */
   setBadge(get('distance-badge'), 'Sensor active', 'status-neutral');
+
+  /* Hardware GPS coordinates if provided by RTDB */
+  const lat = data.latitude ?? data.lat;
+  const lng = data.longitude ?? data.lng;
+  if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+    const state = deviceState[deviceId];
+    if (state && state.geo) {
+      state.geo.lat = Number(lat);
+      state.geo.lng = Number(lng);
+      if (state.marker) state.marker.setLatLng([state.geo.lat, state.geo.lng]);
+      state.geo.history.push([state.geo.lat, state.geo.lng]);
+      if (state.geo.history.length > 20) state.geo.history.shift();
+      if (state.trailPolyline) state.trailPolyline.setLatLngs(state.geo.history);
+      updateMapBadges(deviceId);
+    }
+  }
 }
 
 function setBadge(el, text, cls) {
@@ -696,15 +1631,27 @@ function bootstrap() {
   if (bootstrapped) return;
   bootstrapped = true;
 
-  footerDevEl.textContent = activeDeviceId;
-  updateFooterSource(activeDeviceId);
+  if (activeDeviceId === 'all') {
+    footerDevEl.textContent = `All Cattle Fleet (${DEVICES.length})`;
+    const footerSourceEl = document.getElementById('footer-source-label');
+    if (footerSourceEl) footerSourceEl.textContent = 'Fleet Overview';
+  } else {
+    footerDevEl.textContent = activeDeviceId;
+    updateFooterSource(activeDeviceId);
+  }
 
   DEVICES.forEach(device => {
     initChart(device.id);
+    initMap(device.id);
   });
+
+  initAllCattleMap();
+  renderFleetRosterGrid();
+  updateFleetSummaryAndRoster();
 
   startOfflineWatchdog();
   startSimulationTicker();
+  startMapMovementTicker();
 }
 
 function attachFirebaseDevices() {
