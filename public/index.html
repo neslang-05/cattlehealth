@@ -35,6 +35,19 @@
     </div>
   </header>
 
+  <!-- District Filter Bar -->
+  <div class="district-filter-bar">
+    <div class="filter-container">
+      <span class="filter-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        District
+      </span>
+      <div class="district-pills" id="district-pills" role="radiogroup" aria-label="Filter by district">
+        <!-- Injected dynamically by script.js -->
+      </div>
+    </div>
+  </div>
+
   <!-- Device Tab Navigation (populated by script.js) -->
   <nav class="device-tabs" id="device-tabs" role="tablist" aria-label="Device selection">
     <!-- Tab buttons injected here -->
@@ -52,7 +65,7 @@
         Last updated: <span id="timestamp-val" class="mono">—</span>
       </div>
       <div class="footer-right">
-        <span id="footer-device-label" class="mono">—</span> · <span id="footer-source-label">Firebase RTDB</span>
+        <span id="footer-device-label" class="mono">—</span> · <span id="footer-district-label" class="mono">—</span> · <span id="footer-source-label">Firebase RTDB</span>
       </div>
     </div>
   </footer>

@@ -9,13 +9,21 @@
 /* =====================================================
    CONFIGURATION — edit this list to add/remove devices
 ===================================================== */
+const DISTRICTS = [
+  { id: 'all', label: 'All Districts' },
+  { id: 'senapati', label: 'Senapati' },
+  { id: 'ukhrul', label: 'Ukhrul' },
+  { id: 'imphal east', label: 'Imphal East' },
+  { id: 'bishnupur', label: 'Bishnupur' },
+];
+
 const DEVICES = [
-  { id: 'cow_1', label: 'Cow 1', mode: 'firebase' },
-  { id: 'cow_2', label: 'Cow 2', mode: 'firebase' },
-  { id: 'cow_3', label: 'Cow 3', mode: 'simulated', demoLabel: 'Healthy Baseline' },
-  { id: 'cow_4', label: 'Cow 4', mode: 'simulated', demoLabel: 'Elevated Temp Alert' },
-  { id: 'cow_5', label: 'Cow 5', mode: 'simulated', demoLabel: 'Low Temp Warning' },
-  { id: 'cow_6', label: 'Cow 6', mode: 'simulated', demoLabel: 'Active Grazing' },
+  { id: 'cow_1', label: 'Cattle 1', district: 'senapati', districtLabel: 'Senapati', mode: 'firebase' },
+  { id: 'cow_2', label: 'Cattle 2', district: 'ukhrul', districtLabel: 'Ukhrul', mode: 'firebase' },
+  { id: 'cow_3', label: 'Cattle 3', district: 'imphal east', districtLabel: 'Imphal East', mode: 'simulated', demoLabel: 'Healthy Baseline' },
+  { id: 'cow_4', label: 'Cattle 4', district: 'bishnupur', districtLabel: 'Bishnupur', mode: 'simulated', demoLabel: 'Elevated Temp Alert' },
+  { id: 'cow_5', label: 'Cattle 5', district: 'senapati', districtLabel: 'Senapati', mode: 'simulated', demoLabel: 'Low Temp Warning' },
+  { id: 'cow_6', label: 'Cattle 6', district: 'imphal east', districtLabel: 'Imphal East', mode: 'simulated', demoLabel: 'Active Grazing' },
 ];
 
 // How long (ms) without data before marking a device offline
@@ -63,11 +71,13 @@ DEVICES.forEach((device, index) => {
   btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
   btn.setAttribute('aria-controls', `panel-${device.id}`);
   btn.dataset.deviceId = device.id;
+  btn.dataset.district = device.district;
   btn.dataset.colorIndex = index;
   btn.innerHTML = `
     <span class="tab-indicator" style="--tab-accent: var(--device-color-${index})"></span>
     <span class="tab-status-dot" id="tab-dot-${device.id}"></span>
-    ${device.label}
+    <span class="tab-title">${device.label}</span>
+    <span class="tab-district-chip">${device.districtLabel}</span>
   `;
   btn.addEventListener('click', () => switchTab(device.id));
   tabNav.appendChild(btn);
@@ -84,6 +94,20 @@ DEVICES.forEach((device, index) => {
       <div class="offline-content">
         <svg width="32" height="32" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M3 3l18 18M8.5 8.5A5 5 0 0115.5 15.5M12 12v.01"/><path stroke="currentColor" stroke-width="1.5" d="M2 8.82A15.5 15.5 0 0112 6c1.84 0 3.6.32 5.24.9M5 11.19A10.5 10.5 0 0112 9a10.5 10.5 0 015 1.19M8 14.5a5 5 0 018 0"/></svg>
         <span>Device offline — waiting for signal</span>
+      </div>
+    </div>
+
+    <!-- Panel Header Strip -->
+    <div class="panel-header-strip">
+      <div class="panel-header-info">
+        <h2 class="panel-device-title">${device.label}</h2>
+        <span class="panel-district-tag">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          ${device.districtLabel}
+        </span>
+      </div>
+      <div class="panel-header-meta">
+        <span class="panel-source-badge">${device.mode === 'firebase' ? 'Firebase Live Sensor' : 'Simulated Telemetry'}</span>
       </div>
     </div>
 
@@ -159,7 +183,12 @@ function switchTab(id) {
   activeBtn.setAttribute('aria-selected', 'true');
 
   /* Update footer */
-  footerDevEl.textContent = id;
+  const currentDev = DEVICES.find(d => d.id === id);
+  footerDevEl.textContent = currentDev ? currentDev.label : id;
+  const footerDistEl = document.getElementById('footer-district-label');
+  if (footerDistEl && currentDev) {
+    footerDistEl.textContent = currentDev.districtLabel;
+  }
   updateFooterSource(id);
 
   /* Resize chart (needed after display:none → block) */
@@ -480,6 +509,71 @@ function setBadge(el, text, cls) {
 }
 
 /* =====================================================
+   District Filtering Engine
+===================================================== */
+let currentDistrictFilter = 'all';
+
+function renderDistrictFilterPills() {
+  const container = document.getElementById('district-pills');
+  if (!container) return;
+  container.innerHTML = '';
+
+  DISTRICTS.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = `district-pill${d.id === currentDistrictFilter ? ' active' : ''}`;
+    btn.dataset.district = d.id;
+    btn.setAttribute('role', 'radio');
+    btn.setAttribute('aria-checked', d.id === currentDistrictFilter ? 'true' : 'false');
+
+    const count = d.id === 'all'
+      ? DEVICES.length
+      : DEVICES.filter(dev => dev.district === d.id).length;
+
+    btn.innerHTML = `
+      <span>${d.label}</span>
+      <span class="pill-count">${count}</span>
+    `;
+
+    btn.addEventListener('click', () => filterByDistrict(d.id));
+    container.appendChild(btn);
+  });
+}
+
+function filterByDistrict(districtId) {
+  currentDistrictFilter = districtId;
+
+  // Update pill active classes
+  document.querySelectorAll('.district-pill').forEach(pill => {
+    const isActive = pill.dataset.district === districtId;
+    pill.classList.toggle('active', isActive);
+    pill.setAttribute('aria-checked', isActive ? 'true' : 'false');
+  });
+
+  // Filter device tab visibility
+  let firstVisibleId = null;
+  let activeIsVisible = false;
+
+  DEVICES.forEach(device => {
+    const tabBtn = document.getElementById(`tab-btn-${device.id}`);
+    if (!tabBtn) return;
+
+    const matches = districtId === 'all' || device.district === districtId;
+    if (matches) {
+      tabBtn.classList.remove('tab-filtered-out');
+      if (!firstVisibleId) firstVisibleId = device.id;
+      if (device.id === activeDeviceId) activeIsVisible = true;
+    } else {
+      tabBtn.classList.add('tab-filtered-out');
+    }
+  });
+
+  // If currently active device is hidden by the filter, switch to the first visible device
+  if (!activeIsVisible && firstVisibleId) {
+    switchTab(firstVisibleId);
+  }
+}
+
+/* =====================================================
    Footer Source Indicator
 ===================================================== */
 function updateFooterSource(deviceId) {
@@ -520,11 +614,11 @@ function markOffline(deviceId) {
 }
 
 /* =====================================================
-   DEMO SIMULATION ENGINE (Cows 3, 4, 5 & 6)
+   DEMO SIMULATION ENGINE (Cattle 3, 4, 5 & 6)
 ===================================================== */
 const SIMULATION_PROFILES = {
   cow_3: {
-    name: 'Cow 3',
+    name: 'Cattle 3',
     statusDesc: 'Healthy / Normal Baseline',
     basePulse: 66,
     pulseAmp: 3,
@@ -538,7 +632,7 @@ const SIMULATION_PROFILES = {
     distAmp: 4,
   },
   cow_4: {
-    name: 'Cow 4',
+    name: 'Cattle 4',
     statusDesc: 'Fever / Elevated Temp (Alert Demo)',
     basePulse: 92,
     pulseAmp: 4,
@@ -552,7 +646,7 @@ const SIMULATION_PROFILES = {
     distAmp: 3,
   },
   cow_5: {
-    name: 'Cow 5',
+    name: 'Cattle 5',
     statusDesc: 'Hypothermia / Low Temp (Warning Demo)',
     basePulse: 54,
     pulseAmp: 3,
@@ -566,7 +660,7 @@ const SIMULATION_PROFILES = {
     distAmp: 4,
   },
   cow_6: {
-    name: 'Cow 6',
+    name: 'Cattle 6',
     statusDesc: 'Active Pasture Grazing (Dynamic Demo)',
     basePulse: 78,
     pulseAmp: 6,
@@ -696,7 +790,14 @@ function bootstrap() {
   if (bootstrapped) return;
   bootstrapped = true;
 
-  footerDevEl.textContent = activeDeviceId;
+  renderDistrictFilterPills();
+
+  const currentDev = DEVICES.find(d => d.id === activeDeviceId);
+  footerDevEl.textContent = currentDev ? currentDev.label : activeDeviceId;
+  const footerDistEl = document.getElementById('footer-district-label');
+  if (footerDistEl && currentDev) {
+    footerDistEl.textContent = currentDev.districtLabel;
+  }
   updateFooterSource(activeDeviceId);
 
   DEVICES.forEach(device => {
